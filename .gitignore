@@ -1,0 +1,47 @@
+# Compiled Object files
+*.o
+*.obj
+*.d
+*.lst
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables and Binary Images
+*.elf
+*.bin
+*.hex
+*.map
+*.out
+*.axf
+
+# Build directories
+[Bb]uild/
+Debug/
+Release/
+bin/
+obj/
+
+# Toolchain specific (Keil, IAR, STM32CubeIDE)
+*.uvguix.*
+*.uvoptx
+*.dep
+*.ewt
+*.uvgui.*
+.settings/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*~
+*.bak
