@@ -81,6 +81,7 @@ set(RASC_CMAKE_EXE_LINKER_FLAGS
     -Wl,--gc-sections
     "-Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.map"
     --specs=nano.specs
+    --specs=nosys.specs
     -o
     "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.elf"
 )

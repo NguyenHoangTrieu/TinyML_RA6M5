@@ -12,14 +12,14 @@ static void test_high_prio_task(void *arg)
     (void)arg;
     
     /* 
-     * Nếu preemption chạy đúng, task này phải được thực thi NGAY SAU KHI nó 
-     * được tạo ra từ low_prio_task, trước khi low_prio_task chạy lệnh tiếp theo.
+     * If preemption works correctly, this task must execute IMMEDIATELY after being 
+     * created from low_prio_task, before low_prio_task executes the next instruction.
      */
     if (g_preempt_step == 1) {
         g_preempt_step = 2;
     }
     
-    /* Suspend task vô tận để nhường CPU lại cho các task khác */
+    /* Suspend task indefinitely to yield CPU to other tasks */
     for (;;) {
         OS_Task_Delay(0xFFFFFFFFU); 
     }
@@ -35,8 +35,8 @@ static void test_low_prio_task(void *arg)
     g_preempt_step = 1;
     
     /* 
-     * Tạo task ưu tiên cao hơn. Ở đây low_prio có ưu tiên 5, ta tạo high_prio ưu tiên 4.
-     * (0 là ưu tiên cao nhất, 31 là thấp nhất).
+     * Create a higher priority task. Here low_prio has priority 5, we create high_prio with priority 4.
+     * (0 is highest priority, 31 is lowest).
      */
     status = OS_Task_Create(&g_test_high_tcb,
                             test_high_prio_task,
@@ -50,8 +50,8 @@ static void test_low_prio_task(void *arg)
     }
     
     /* 
-     * Ngay sau lệnh OS_Task_Create, CPU đáng lý phải bị preempt bởi test_high_prio_task.
-     * Do đó khi code chạy đến dòng này, test_high_prio_task ĐÃ chạy xong và set step = 2.
+     * Immediately after OS_Task_Create, the CPU should be preempted by test_high_prio_task.
+     * Therefore, when code reaches this point, test_high_prio_task HAS already executed and set step = 2.
      */
     if (g_preempt_step == 2) {
         debug_print("[RTOS TEST] Preemptive Scheduling: PASS\r\n");
@@ -59,7 +59,7 @@ static void test_low_prio_task(void *arg)
         debug_print("[RTOS TEST] Preemptive Scheduling: FAIL (step = %d)\r\n", g_preempt_step);
     }
     
-    /* Kết thúc bài test, suspend task này vô tận để hệ thống bình thường tiếp tục chạy */
+    /* End test, suspend this task indefinitely so the main system continues running normally */
     for (;;) {
         OS_Task_Delay(0xFFFFFFFFU);
     }
@@ -67,7 +67,7 @@ static void test_low_prio_task(void *arg)
 
 void test_rtos_preemptive_init(void)
 {
-    /* Tạo Low Prio Task. Priority 5 là đủ thấp để không tranh chấp với hệ thống chính. */
+    /* Create Low Prio Task. Priority 5 is low enough to not compete with main system. */
     OS_Task_Create(&g_test_low_tcb,
                    test_low_prio_task,
                    (void *)0,

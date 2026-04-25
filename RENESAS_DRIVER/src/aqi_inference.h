@@ -7,12 +7,12 @@
 extern "C" {
 #endif
 
-// Khởi tạo hệ thống AI
+// Initialize AI system
 int aqi_ai_init(void);
 
-// Hàm dự đoán AQI
-// Input: mảng 5 giá trị cảm biến mới nhất [PM2.5, PM10, CO, NO2, O3]
-// Output: Giá trị AQI dự đoán
+// AQI prediction function
+// Input: array of 5 latest sensor values [PM2.5, PM10, CO, NO2, O3]
+// Output: predicted AQI value
 float aqi_ai_predict(float* new_sensor_data);
 
 #ifdef __cplusplus

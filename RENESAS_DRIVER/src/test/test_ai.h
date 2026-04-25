@@ -3,12 +3,12 @@
 
 /**
  * @file    test_ai.h
- * @brief   Test AI inference (aqi_ai_predict) với dữ liệu cảm biến giả.
+ * @brief   Test AI inference (aqi_ai_predict) with synthetic sensor data.
  *
- * Kịch bản:
- *   - Nạp 6 mẫu dữ liệu synthetic (6 giờ = 30 giá trị) vào model tuần tự.
- *   - In kết quả AQI dự đoán và trạng thái (Good/Moderate/Unhealthy) ra UART.
- *   - Chạy như một RTOS Task độc lập, tự kết thúc sau khi hoàn tất.
+ * Scenario:
+ *   - Load 6 synthetic data samples (6 hours = 30 values) into model sequentially.
+ *   - Print predicted AQI results and status (Good/Moderate/Unhealthy) to UART.
+ *   - Run as an independent RTOS Task, self-terminate after completion.
  */
 
 #ifdef __cplusplus
@@ -16,8 +16,8 @@ extern "C" {
 #endif
 
 /**
- * @brief Tạo Task chạy bài test inference AI.
- *        Gọi sau OS_Init(), trước OS_Start().
+ * @brief Create Task to run AI inference test.
+ *        Call after OS_Init(), before OS_Start().
  */
 void test_ai_inference_init(void);
 

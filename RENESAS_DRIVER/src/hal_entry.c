@@ -23,12 +23,27 @@
 #include "utils.h"
 #include "test/test_runner.h"
 #include "test/test_cases.h"
+#include <sys/types.h>
+
 
 /* -----------------------------------------------------------------
  * LED pin definitions  (Port 0, Pin 6 = P006 = LED1 Blue)
  * ----------------------------------------------------------------- */
 #define LED1_PORT   GPIO_PORT0
 #define LED1_PIN    6U
+
+/* Ghi đè hàm _sbrk để Linker không đòi symbol 'end' từ file .ld nữa */
+#ifdef __cplusplus
+extern "C" {
+#endif
+caddr_t _sbrk(int incr) {
+    (void)incr;
+    // Trả về -1 để báo hết bộ nhớ, chặn đứng mọi nỗ lực gọi malloc() ngầm
+    return (caddr_t)-1; 
+}
+#ifdef __cplusplus
+}
+#endif
 
 /* -----------------------------------------------------------------
  * hal_entry  --  called from main()
