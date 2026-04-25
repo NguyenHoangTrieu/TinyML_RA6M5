@@ -1,10 +1,10 @@
 #ifndef SCALER_CONSTANTS_H
 #define SCALER_CONSTANTS_H
 
-// Số lượng đầu vào: 6 giờ x 5 cảm biến = 30 giá trị
+// Number of inputs: 6 hours x 5 sensors = 30 values
 #define SCALER_INPUT_SIZE 30
 
-// Bộ hằng số MEAN từ StandardScaler
+// MEAN constants from StandardScaler
 const float AQI_MEAN[SCALER_INPUT_SIZE] = {
     20.97727143f, 31.73751068f, 389.16590715f, 24.95972657f, 54.51523782f,
     20.97530618f, 31.73463401f, 389.15949872f, 24.96283110f, 54.51395614f,
@@ -14,7 +14,7 @@ const float AQI_MEAN[SCALER_INPUT_SIZE] = {
     20.96582170f, 31.72009399f, 389.19624039f, 24.97628881f, 54.46838508f
 };
 
-// Bộ hằng số SCALE (Standard Deviation) từ StandardScaler
+// SCALE constants (Standard Deviation) from StandardScaler
 const float AQI_SCALE[SCALER_INPUT_SIZE] = {
     9.90920511f, 14.23726182f, 184.97568013f, 14.42531652f, 38.06490557f,
     9.90761367f, 14.23514740f, 184.96693777f, 14.42827298f, 38.06635389f,

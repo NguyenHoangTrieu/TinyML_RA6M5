@@ -58,39 +58,46 @@ static void task_ai_test(void *arg)
 {
     (void)arg;
 
-    /* Wait for system to start up stably */
+    /* Wait for system to stabilize */
     OS_Task_Delay(500U);
 
-    debug_print("\r\n=== [AI TEST] Starting Model Inference Test ===\r\n");
-    debug_print("[AI TEST] Model: AQI Predictor (5 sensors x 6h window)\r\n");
-    debug_print("[AI TEST] Mode:  Synthetic data (no real hardware needed)\r\n\r\n");
+    debug_print("\r\n=== [AQI MONITOR] Starting Continuous Inference ===\r\n");
 
-    /* Step 1: Initialize TFLite interpreter */
-    debug_print("[AI TEST] Initializing TFLite interpreter...\r\n");
-    int init_result = aqi_ai_init();
-    if (init_result != 0) {
-        debug_print("[AI TEST] FAIL: aqi_ai_init() returned %d\r\n", init_result);
-        debug_print("[AI TEST] >> Check: kTensorArenaSize, model schema version\r\n");
-        for (;;) { OS_Task_Delay(5000U); }
+    /* 1. Initialize TFLite Model */
+    if (aqi_ai_init() != 0) {
+        debug_print("[AQI MONITOR] FAIL: TFLite init\r\n");
+        /* Suspend task if hardware/memory initialization fails */
+        for (;;) { OS_Task_Delay(5000U); } 
     }
-    debug_print("[AI TEST] TFLite init: OK\r\n\r\n");
 
-    /* Step 2: Load 6 timesteps sequentially to fill sliding window */
-    debug_print("[AI TEST] Feeding 6 timesteps into model...\r\n");
-    debug_print("Step   PM2.5  PM10   CO   NO2    O3     =>  AQI    Category\r\n");
+    debug_print("[AQI MONITOR] TFLite init OK. Running infinite loop.\r\n");
+    debug_print("PM2.5  PM10   CO   NO2    O3     =>  AQI    Category\r\n");
     debug_print("----------------------------------------------------------------------\r\n");
 
-    float aqi = 0.0f;
-    for (int step = 0; step < 6; step++) {
-        /* Cast away const: aqi_ai_predict accepts float* but does not write */
+    /* Main task loop */
+    for (;;) {
+        /* 2. Collect hardware data (Hardware Acquisition) */
         float sample[5];
-        for (int i = 0; i < 5; i++) {
-            sample[i] = k_synthetic_data[step][i];
+        
+        /* TODO: Replace this section with actual ADC/I2C/UART sensor API calls
+         * Currently using simulated data with auto-increment for AI response testing */
+        static float dummy_pm25 = 15.0f;
+        sample[0] = dummy_pm25;           /* PM2.5 */
+        sample[1] = dummy_pm25 + 10.0f;   /* PM10 */
+        sample[2] = 250.0f;               /* CO */
+        sample[3] = 20.0f;                /* NO2 */
+        sample[4] = 45.0f;                /* O3 */
+
+        /* Reset dummy data when threshold exceeded */
+        dummy_pm25 += 8.5f; 
+        if (dummy_pm25 > 150.0f) {
+            dummy_pm25 = 15.0f;
         }
 
-        aqi = aqi_ai_predict(sample);
+        /* 3. Feed data to Model (Firmware Inference) */
+        float aqi = aqi_ai_predict(sample);
 
-        /* Print results at each step */
+        /* 4. Cast for bare-metal UART output */
         int32_t aqi_int = (int32_t)aqi;
         int32_t aqi_frac = (int32_t)((aqi - (float)aqi_int) * 10.0f);
         
@@ -99,45 +106,21 @@ static void task_ai_test(void *arg)
         
         int32_t pm10_int = (int32_t)sample[1];
         int32_t pm10_frac = (int32_t)((sample[1] - (float)pm10_int) * 10.0f);
-        
-        int32_t co_int = (int32_t)sample[2];
-        
-        int32_t no2_int = (int32_t)sample[3];
-        int32_t no2_frac = (int32_t)((sample[3] - (float)no2_int) * 10.0f);
-        
-        int32_t o3_int = (int32_t)sample[4];
-        int32_t o3_frac = (int32_t)((sample[4] - (float)o3_int) * 10.0f);
 
-        /* Use %d for int, %s for string, remove width/precision modifiers */
-        debug_print("[%d]  %d.%d  %d.%d  %d  %d.%d  %d.%d  =>  %d.%d  %s\r\n",
-                    step + 1,
+        debug_print("%d.%d  %d.%d  %d  %d  %d  =>  %d.%d  %s\r\n",
                     (int)pm25_int, (int)pm25_frac,
                     (int)pm10_int, (int)pm10_frac,
-                    (int)co_int,
-                    (int)no2_int, (int)no2_frac,
-                    (int)o3_int, (int)o3_frac,
+                    (int)sample[2], (int)sample[3], (int)sample[4],
                     (int)aqi_int, (int)aqi_frac,
                     aqi_category(aqi));
-        OS_Task_Delay(200U);
-    }
 
-    /* Step 3: Print final result */
-    debug_print("----------------------------------------------------------------------\r\n");
-    debug_print("[AI TEST] Final AQI prediction: %d (Category: %s)\r\n",
-                (int)aqi, aqi_category(aqi));
-
-    if (aqi > 0.0f && aqi < 500.0f) {
-        debug_print("[AI TEST] Inference: PASS (valid AQI value)\r\n");
-    } else {
-        debug_print("[AI TEST] Inference: SUSPICIOUS (AQI=%.1f, check model/scaler)\r\n",
-                    (double)aqi);
-    }
-
-    debug_print("=== [AI TEST] Done ===\r\n\r\n");
-
-    /* Task suspends indefinitely after completion */
-    for (;;) {
-        OS_Task_Delay(0xFFFFFFFFU);
+        /* 5. Manage sampling cycle */
+        /* Currently set to 5 seconds for easy debugging.
+         * IMPORTANT HARDWARE NOTE: For AI to run correct 6h window logic,
+         * DO NOT feed data to aqi_ai_predict every 5 seconds.
+         * Read sensors every 5 seconds and accumulate average. Only after
+         * exactly 1 HOUR (3600000U), pass the averaged array to aqi_ai_predict(). */
+        OS_Task_Delay(5000U); 
     }
 }
 
