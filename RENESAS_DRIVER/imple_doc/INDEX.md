@@ -56,6 +56,7 @@ Tags: #in-progress #system
 | [[FW_Context_Switch]] | PendSV assembly, FPU S16-S31 lazy save/restore, SVC first-task launch |
 | [[FW_Semaphore]] | Counting/Binary semaphores, priority-ordered wake, timeout support |
 | [[FW_Software_Timer]] | One-shot/Auto-reload timers, Timer Daemon Task, ISR-minimal callbacks |
+| [[FW_RTOS_Test]] | Guide and test logic for RTOS preemptive capabilities |
 
 Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 

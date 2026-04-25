@@ -59,7 +59,10 @@ set(RASC_CMAKE_CXX_FLAGS
     -ffunction-sections
     -fdata-sections
     -mthumb
-    -std=c++11
+    -std=c++14
+    -fno-rtti
+    -fno-exceptions
+    -fno-threadsafe-statics
     -MMD
     -MP
 )
