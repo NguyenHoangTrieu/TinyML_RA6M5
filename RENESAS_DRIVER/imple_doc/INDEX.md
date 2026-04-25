@@ -35,6 +35,8 @@ Tags: #in-progress #system
 | [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
 | [[FW_TestFramework]] | `test_runner.h/.c` — 11 tests across 4 suites |
+| [[FW_RTOS_Test]] | Khịch bản test preemptive scheduling |
+| [[RCA_RTOS_Preemptive_Verification]] | Phân tích xác nhận PASS là hợp lệ |
 | [[FW_TFLite_Integration]] | `aqi_inference.cpp` — TensorFlow Lite Micro inference wrapper |
 
 ---

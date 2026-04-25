@@ -3,7 +3,8 @@
 #include "Scaler_Constants.h"
 
 #include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/all_ops_resolver.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/kernels/micro_ops.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/micro/micro_log.h"
 
@@ -22,11 +23,20 @@ namespace {
     // Bộ đệm lịch sử: 30 giá trị (6 giờ x 5 cảm biến)
     float sensor_history[SCALER_INPUT_SIZE] = {0.0f};
     
-    // TFLite Resolver: Đăng ký toàn bộ operations để dễ dàng chạy model
-    tflite::AllOpsResolver resolver;
+    // MicroMutableOpResolver: chỉ đăng ký đúng các ops mô hình AQI cần
+    // (Dense Neural Net: FullyConnected + Relu/Logistic + Reshape)
+    // Tránh dùng AllOpsResolver (bị xóa) hoặc MicroMutableOpResolver đầy đủ
+    // vì nó pull-in signal/irfft.h gây lỗi kéo theo KissFFT.
+    static tflite::MicroMutableOpResolver<4> resolver;
 }
 
 extern "C" int aqi_ai_init(void) {
+    // 0. Đăng ký các ops cần thiết (chỉ 1 lần)
+    resolver.AddFullyConnected();
+    resolver.AddRelu();
+    resolver.AddLogistic();
+    resolver.AddReshape();
+
     // 1. Ánh xạ model từ mảng dữ liệu C
     model = tflite::GetModel(g_aqi_model_data);
     if (model->version() != TFLITE_SCHEMA_VERSION) {

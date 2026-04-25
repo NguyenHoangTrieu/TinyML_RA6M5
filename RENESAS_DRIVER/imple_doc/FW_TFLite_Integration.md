@@ -75,3 +75,72 @@ Sử dụng hàm `MicroPrintf()` (hoặc cấu hình lại `#define TF_LITE_STRI
 ## 5. Build System (CMake)
 - Đảm bảo Compiler Flags có các cờ: `-std=c++14`, `-fno-rtti`, `-fno-exceptions`. TFLite Micro được thiết kế không dùng Runtime Type Information (RTTI) và C++ Exceptions để tiết kiệm RAM.
 - Add thư mục thư viện vào `include_directories()`, đặc biệt chú ý đường dẫn tới `third_party/flatbuffers/include`.
+
+---
+
+## 6. CMake GLOB_RECURSE — Danh sách đầy đủ lỗi và cách fix
+
+> **Nguyên tắc cốt lõi:** TFLite Micro repo chứa rất nhiều code chỉ chạy trên PC (tools, tests, Python bindings, platform ports riêng biệt). Khi dùng `GLOB_RECURSE` để lấy toàn bộ `*.cc`, CMake sẽ kéo vào các file này và gây lỗi build hàng loạt. Giải pháp là dùng `list(FILTER ... EXCLUDE REGEX ...)` để loại bỏ chúng.
+
+### 6.1 Bảng lỗi theo thứ tự phát sinh
+
+| # | File lỗi (pattern) | Lỗi nhận được | Nguyên nhân | Filter cần thêm |
+|---|---|---|---|---|
+| 1 | `third_party/ruy/*_test.cc` | `gtest/gtest.h: No such file` | Unit test của Ruy cần Google Test (PC-only) | `.*_test\.cc$` |
+| 2 | `third_party/ruy/benchmark.cc` | `gtest/gtest.h: No such file` | Benchmark cần GTest | `.*benchmark.*` |
+| 3 | `third_party/ruy/blocking_counter.cc` | `condition_variable` / `mutex` không tồn tại | Ruy dùng `std::thread` — không có trên bare-metal | `.*third_party.*` |
+| 4 | `experimental/microfrontend/` | `kiss_fft.h: No such file` | Module audio dùng KissFFT (chưa được tải về) | `.*experimental.*` |
+| 5 | `micro/arc_custom/`, `arc_emsdp/` | `arc/arc_timer.h: No such file` | Code riêng cho chip ARC của Synopsys | `.*arc_custom.*` |
+| 6 | `micro/arc_emsdp/debug_log.cc` | `eyalroz_printf/src/printf/printf.h` | Thiếu thư viện printf cho ARC platform | `.*arc_emsdp.*` |
+| 7 | `micro/integration_tests/seanet/` | `python/tflite_micro/python_ops_resolver.h` | Integration test cần Python resolver | `.*integration_tests.*` |
+| 8 | `micro/micro_mutable_op_resolver.h` | `signal/micro/kernels/irfft.h` | Signal ops (audio DSP) — cần thư mục `signal/` | Copy `signal/` từ repo gốc |
+| 9 | `signal/src/irfft_int16.cc` | `kiss_fft.h: No such file` | Signal ops phụ thuộc KissFFT | `.*signal.*` |
+| 10 | `micro/benchmarks/keyword_benchmark_8bit.cc` | `keyword_scrambled_8bit_model_data.h` | Benchmark cần model data file | `.*benchmark.*` (đổi từ `.*benchmark\.cc$`) |
+| 11 | `micro/python/tflite_size/src/` | `Python.h: No such file` | Python binding — PC-only tool | `.*python.*` |
+| 12 | `micro/kernels/test_data_generation/` | `multiple definition of 'main'` | Mỗi file có `main()` riêng — xung đột với `main.c` | `.*test_data_generation.*` |
+
+### 6.2 Bộ filter hoàn chỉnh (copy-paste vào CMake)
+
+```cmake
+# === TFLite Source Filter — Loại bỏ tất cả code PC-only ===
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*_test\\.cc$")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*_test\\.c$")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*benchmark.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*third_party.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*examples.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*testing.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*testdata.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*test_data_generation.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*integration_tests.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*experimental.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*tools.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*signal.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*python.*")
+list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*(arc_custom|arc_emsdp|arc_mli|bluepill|ceva|chre|cortex_m_corstone_300|cortex_m_generic|ethos_u|hexagon|riscv32_generic|xtensa|cmsis_nn|models).*")
+
+# Tắt warnings từ TFLite (third-party code)
+foreach(tflite_src ${TFLite_Source_Files})
+    set_source_files_properties(${tflite_src} PROPERTIES COMPILE_FLAGS "-w")
+endforeach()
+```
+
+### 6.3 Include directories bắt buộc
+
+```cmake
+target_include_directories(${PROJECT_NAME}.elf PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite/third_party/flatbuffers/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite/third_party/gemmlowp
+)
+```
+
+### 6.4 Third-party dependencies cần tải thủ công
+
+TFLite Micro **không** đi kèm source code của các thư viện phụ thuộc. Cần tải và đặt vào đúng vị trí:
+
+| Thư viện | URL | Đích |
+|---|---|---|
+| FlatBuffers | `github.com/google/flatbuffers/archive/refs/tags/v25.9.23.zip` | `third_party/flatbuffers/include/` |
+| Gemmlowp | `github.com/google/gemmlowp/archive/719139ce.zip` | `third_party/gemmlowp/` (lấy `fixedpoint/`, `internal/`, `public/`) |
+| Ruy | `github.com/google/ruy/archive/d37128311b.zip` | `third_party/ruy/` (headers only, không compile) |
