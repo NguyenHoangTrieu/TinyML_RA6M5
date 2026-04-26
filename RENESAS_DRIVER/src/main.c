@@ -19,7 +19,7 @@
 #include "software_timer.h"
 #include <stdint.h>
 #include "test/test_rtos.h"
-#include "test/test_ai.h"
+#include "test/test_iaq.h"
 
 #define LED_PORT GPIO_PORT0
 #define LED1_PIN 6U
@@ -199,8 +199,8 @@ int main(void)
   /* Khởi tạo RTOS Preemptive Test Task */
   test_rtos_preemptive_init();
 
-  /* Khởi tạo AI Inference Test Task (chạy với dữ liệu synthetic) */
-  test_ai_inference_init();
+  /* Initialize AI Inference Test Task (runs with synthetic sensor data) */
+  test_iaq_inference_init();
 
   status = OS_SemCreate(&g_led_timer_sem, 0U, 1U);
   if (status != OS_OK) {

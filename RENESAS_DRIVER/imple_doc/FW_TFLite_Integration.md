@@ -72,9 +72,20 @@ Sử dụng hàm `MicroPrintf()` (hoặc cấu hình lại `#define TF_LITE_STRI
 
 ---
 
-## 5. Build System (CMake)
-- Đảm bảo Compiler Flags có các cờ: `-std=c++14`, `-fno-rtti`, `-fno-exceptions`. TFLite Micro được thiết kế không dùng Runtime Type Information (RTTI) và C++ Exceptions để tiết kiệm RAM.
-- Add thư mục thư viện vào `include_directories()`, đặc biệt chú ý đường dẫn tới `third_party/flatbuffers/include`.
+## 5. Build System (CMake) — `cmake/GeneratedSrc.cmake`
+
+Key rules:
+- Compiler flags required: `-std=c++14`, `-fno-rtti`, `-fno-exceptions`, `-fno-threadsafe-statics`.
+- Two separate source lists are used:
+  - `Source_Files` — project code (`src/`, `Driver/`, `BSP/`) with full warnings enabled.
+  - `TFLite_Source_Files` — TFLite core compiled with `-w` to silence third-party warnings.
+- Include directories required for TFLite:
+  - `Middleware/TensorFlowLite` — root for `tensorflow/lite/...` includes
+  - `Middleware/TensorFlowLite/third_party/flatbuffers/include`
+  - `Middleware/TensorFlowLite/third_party/gemmlowp`
+- **Do NOT** add `Middleware/TensorFlowLite/**` to the project `Source_Files` GLOB — TFLite has its own `TFLite_Source_Files` group with special `-w` per-file properties.
+- **Do NOT** use `AllOpsResolver` — it was removed in newer TFLite versions.
+- **Do NOT** include the full `micro_mutable_op_resolver.h` header — it pulls in `signal/irfft.h` → KissFFT. Instead include `kernels/micro_ops.h` and call `AddFullyConnected()` / `AddRelu()` directly.
 
 ---
 

@@ -1,27 +1,32 @@
 #ifndef SCALER_CONSTANTS_H
 #define SCALER_CONSTANTS_H
 
-// Number of inputs: 6 hours x 5 sensors = 30 values
-#define SCALER_INPUT_SIZE 30
+/**
+ * @file  scaler_constants.h
+ * @brief StandardScaler parameters for IAQ model input normalization.
+ *
+ * Generated from Python training pipeline (sklearn.preprocessing.StandardScaler).
+ * Formula applied before each inference:
+ *   tvoc_scaled = (tvoc_ppb - IAQ_MEAN[0]) / IAQ_SCALE[0]
+ *
+ * Training dataset statistics:
+ *   Samples : ~50000 TVOC readings from synthetic ZMOD4410 sweep
+ *   Range   : 10 - 6000 ppb
+ *   MEAN    : 2812.12 ppb
+ *   STD     : 1904.04 ppb
+ */
 
-// MEAN constants from StandardScaler
-const float AQI_MEAN[SCALER_INPUT_SIZE] = {
-    20.97727143f, 31.73751068f, 389.16590715f, 24.95972657f, 54.51523782f,
-    20.97530618f, 31.73463401f, 389.15949872f, 24.96283110f, 54.51395614f,
-    20.97315580f, 31.73141555f, 389.16063799f, 24.96602108f, 54.50882939f,
-    20.97100541f, 31.72811165f, 389.16904016f, 24.96925377f, 54.49886072f,
-    20.96852749f, 31.72429507f, 389.18128738f, 24.97260040f, 54.48490459f,
-    20.96582170f, 31.72009399f, 389.19624039f, 24.97628881f, 54.46838508f
+/* Number of input features (TVOC only — single-feature model) */
+#define SCALER_INPUT_SIZE 1
+
+/* Mean of training TVOC distribution (ppb) */
+static const float IAQ_MEAN[SCALER_INPUT_SIZE] = {
+    2812.118256623945f
 };
 
-// SCALE constants (Standard Deviation) from StandardScaler
-const float AQI_SCALE[SCALER_INPUT_SIZE] = {
-    9.90920511f, 14.23726182f, 184.97568013f, 14.42531652f, 38.06490557f,
-    9.90761367f, 14.23514740f, 184.96693777f, 14.42827298f, 38.06635389f,
-    9.90562193f, 14.23235104f, 184.96829183f, 14.43135369f, 38.07086691f,
-    9.90371617f, 14.22957200f, 184.97566574f, 14.43444068f, 38.07571175f,
-    9.90168176f, 14.22657471f, 184.98253985f, 14.43747274f, 38.07735815f,
-    9.89967776f, 14.22352460f, 184.98773835f, 14.44042970f, 38.07539568f
+/* Standard deviation of training TVOC distribution (ppb) */
+static const float IAQ_SCALE[SCALER_INPUT_SIZE] = {
+    1904.0350619753567f
 };
 
-#endif // SCALER_CONSTANTS_H
+#endif /* SCALER_CONSTANTS_H */
