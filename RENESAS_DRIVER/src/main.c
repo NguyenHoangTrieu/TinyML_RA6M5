@@ -17,9 +17,9 @@
 #include "rtos_config.h"
 #include "semaphore.h"
 #include "software_timer.h"
-#include <stdint.h>
-#include "test/test_rtos.h"
 #include "test/test_iaq.h"
+#include "test/test_rtos.h"
+#include <stdint.h>
 
 #define LED_PORT GPIO_PORT0
 #define LED1_PIN 6U
@@ -43,8 +43,7 @@ static OS_TCB_t g_timer_led_tcb;
 static Semaphore_t g_led_timer_sem;
 static Timer_t g_led_timer;
 
-static void led_init(void)
-{
+static void led_init(void) {
   GPIO_Config(LED_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
   GPIO_Config(LED_PORT, LED2_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
   GPIO_Config(LED_PORT, LED3_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
@@ -53,22 +52,19 @@ static void led_init(void)
   LED3_OFF();
 }
 
-static void led_toggle(uint8_t pin)
-{
+static void led_toggle(uint8_t pin) {
   uint8_t cur = GPIO_Read_Pin(LED_PORT, pin);
   GPIO_Write_Pin(LED_PORT, pin, (cur != 0U) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
-static void delay_ms_bm(uint32_t ms)
-{
+static void delay_ms_bm(uint32_t ms) {
   volatile uint32_t n = ms * 100000U;
   while (n-- != 0U) {
     __asm volatile("nop");
   }
 }
 
-static void app_panic(const char *step, int32_t err)
-{
+static void app_panic(const char *step, int32_t err) {
   debug_print("FATAL: %s failed (%d)\r\n", step, (int)err);
 
   for (;;) {
@@ -77,8 +73,7 @@ static void app_panic(const char *step, int32_t err)
   }
 }
 
-static void i2c_scan(I2C_t i2c)
-{
+static void i2c_scan(I2C_t i2c) {
   uint8_t count = 0U;
 
   debug_print("I2C scan (0x08-0x77):\r\n");
@@ -103,14 +98,12 @@ static void i2c_scan(I2C_t i2c)
   debug_print("\r\n");
 }
 
-static void timer_signal_led_task(void *arg)
-{
+static void timer_signal_led_task(void *arg) {
   (void)arg;
   (void)OS_SemPost(&g_led_timer_sem);
 }
 
-static void task_led_blink(void *arg)
-{
+static void task_led_blink(void *arg) {
   (void)arg;
 
   for (;;) {
@@ -119,8 +112,7 @@ static void task_led_blink(void *arg)
   }
 }
 
-static void task_sensor_logger(void *arg)
-{
+static void task_sensor_logger(void *arg) {
   uint32_t sample = 0U;
   (void)arg;
 
@@ -132,17 +124,13 @@ static void task_sensor_logger(void *arg)
       int32_t t10 = (int32_t)(data.temperature_c * 10.0f);
       int32_t rh10 = (int32_t)(data.humidity_pct * 10.0f);
 
-      debug_print("[sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n",
-                  (unsigned)sample,
-                  (int)(t10 / 10),
-                  (unsigned)((uint32_t)t10 % 10U),
-                  (int)(rh10 / 10),
-                  (unsigned)((uint32_t)rh10 % 10U));
+      debug_print("[sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n", (unsigned)sample,
+                  (int)(t10 / 10), (unsigned)((uint32_t)t10 % 10U),
+                  (int)(rh10 / 10), (unsigned)((uint32_t)rh10 % 10U));
       LED3_ON();
     } else {
       debug_print("[sensor:%u] AHT20 err=%u (1=NACK 2=BUSY 3=TIMEOUT)\r\n",
-                  (unsigned)sample,
-                  (unsigned)st);
+                  (unsigned)sample, (unsigned)st);
       led_toggle(LED3_PIN);
     }
 
@@ -151,8 +139,7 @@ static void task_sensor_logger(void *arg)
   }
 }
 
-static void task_timer_led(void *arg)
-{
+static void task_timer_led(void *arg) {
   uint32_t wake_count = 0U;
   (void)arg;
 
@@ -167,8 +154,7 @@ static void task_timer_led(void *arg)
   }
 }
 
-int main(void)
-{
+int main(void) {
   int32_t status;
   uint8_t tdre_ok;
 
@@ -195,7 +181,7 @@ int main(void)
   AHT20_Init(I2C1);
 
   OS_Init();
-  
+
   /* Khởi tạo RTOS Preemptive Test Task */
   test_rtos_preemptive_init();
 
@@ -207,38 +193,26 @@ int main(void)
     app_panic("OS_SemCreate", status);
   }
 
-  status = OS_TimerCreate(&g_led_timer,
-                          timer_signal_led_task,
-                          (void *)0,
-                          500U,
+  status = OS_TimerCreate(&g_led_timer, timer_signal_led_task, (void *)0, 500U,
                           OS_TIMER_AUTO_RELOAD);
   if (status != OS_OK) {
     app_panic("OS_TimerCreate", status);
   }
 
-  status = OS_Task_Create(&g_led_blink_tcb,
-                          task_led_blink,
-                          (void *)0,
-                          TASK_PRIO_LED_BLINK,
-                          "led_blink");
+  status = OS_Task_Create(&g_led_blink_tcb, task_led_blink, (void *)0,
+                          TASK_PRIO_LED_BLINK, "led_blink");
   if (status != OS_OK) {
     app_panic("OS_Task_Create led_blink", status);
   }
 
-  status = OS_Task_Create(&g_sensor_tcb,
-                          task_sensor_logger,
-                          (void *)0,
-                          TASK_PRIO_SENSOR,
-                          "sensor");
+  status = OS_Task_Create(&g_sensor_tcb, task_sensor_logger, (void *)0,
+                          TASK_PRIO_SENSOR, "sensor");
   if (status != OS_OK) {
     app_panic("OS_Task_Create sensor", status);
   }
 
-  status = OS_Task_Create(&g_timer_led_tcb,
-                          task_timer_led,
-                          (void *)0,
-                          TASK_PRIO_LED_TIMER,
-                          "led_timer");
+  status = OS_Task_Create(&g_timer_led_tcb, task_timer_led, (void *)0,
+                          TASK_PRIO_LED_TIMER, "led_timer");
   if (status != OS_OK) {
     app_panic("OS_Task_Create led_timer", status);
   }
