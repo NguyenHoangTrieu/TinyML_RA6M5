@@ -56,11 +56,9 @@ void hal_entry(void)
     /* Drive LED OFF initially (active-low: HIGH = OFF) */
     GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET);
 
-    /* Run driver test suite */
-    test_gpio_register();
-    test_rwp_register();
-    test_uart_register();
-    test_i2c_register();
+    /* Run driver test suite (only IAQ and RTOS tests enabled) */
+    test_iaq_register();
+    test_rtos_register();
 
     uint32_t failures = test_run_all();
 

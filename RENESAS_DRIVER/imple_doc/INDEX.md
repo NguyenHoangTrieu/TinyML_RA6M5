@@ -34,7 +34,7 @@ Tags: #in-progress #system
 | [[FW_UART_Driver]] | `drv_uart.h/.c` — UART_Init, SendChar (with timeout) |
 | [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
-| [[FW_TestFramework]] | `test_runner.h/.c` — 11 tests across 4 suites |
+| [[FW_TestFramework]] | `test_runner.h/.c` — shared test framework, currently used by IAQ and RTOS suites |
 | [[FW_RTOS_Test]] | Khịch bản test preemptive scheduling |
 | [[RCA_RTOS_Preemptive_Verification]] | Phân tích xác nhận PASS là hợp lệ |
 | [[FW_TFLite_Integration]] | `aqi_inference.cpp` — TensorFlow Lite Micro inference wrapper |
@@ -46,6 +46,7 @@ Tags: #in-progress #system
 | Note | Files |
 |------|-------|
 | [[BSP_AHT20]] | `BSP/AHT20/bsp_aht20.h/.c` — AHT20 temp+humidity, I2C1 (SCL=P512, SDA=P511) |
+| [[BSP_ZMOD4410]] | `BSP/ZMOD4410/bsp_zmod4410.h/.c` — ZMOD4410 raw-read BSP, PID/status/cmd/result path |
 
 ---
 
@@ -95,6 +96,7 @@ Phase 3 (BSP): Sensor drivers over verified I2C/UART layer.
 | Software Timers (Phase 2c) | ✅ Complete |
 | UART baremetal debug | ✅ Resolved — MSTPCRB addr fix + PSEL bit-shift fix |
 | AHT20 BSP (Phase 3) | ✅ Complete — [[BSP_AHT20]] |
+| ZMOD4410 BSP (Phase 3) | 🟡 Partial — [[BSP_ZMOD4410]] raw transport only, no Renesas algorithm yet |
 | AQI TFLite Inference | ✅ Complete — [[FW_TFLite_Integration]] |
 | Hardware-in-loop test | 🔲 Pending |
 

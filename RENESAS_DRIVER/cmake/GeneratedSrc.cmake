@@ -118,6 +118,7 @@ target_include_directories(${PROJECT_NAME}.elf
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/include
     # BSP sensor drivers
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/AHT20
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/ZMOD4410
     # TFLite Micro — root (for tensorflow/lite/... includes)
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite
     # TFLite third-party headers (FlatBuffers, Gemmlowp — headers only, not compiled)

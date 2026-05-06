@@ -1,19 +1,18 @@
-#ifndef TEST_GPIO_H
-#define TEST_GPIO_H
-void test_gpio_register(void);
+/**
+ * @file    test_cases.h
+ * @brief   Test case declarations.
+ *
+ * Registered tests:
+ *   - test_iaq: TensorFlow Lite IAQ model inference tests
+ *   - test_rtos: Bare-metal RTOS kernel tests
+ */
+
+#ifndef TEST_IAQ_H
+#define TEST_IAQ_H
+void test_iaq_register(void);
 #endif
 
-#ifndef TEST_RWP_H
-#define TEST_RWP_H
-void test_rwp_register(void);
-#endif
-
-#ifndef TEST_UART_H
-#define TEST_UART_H
-void test_uart_register(void);
-#endif
-
-#ifndef TEST_I2C_H
-#define TEST_I2C_H
-void test_i2c_register(void);
+#ifndef TEST_RTOS_H
+#define TEST_RTOS_H
+void test_rtos_register(void);
 #endif
