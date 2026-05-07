@@ -81,7 +81,8 @@ Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 | [[RCA_I2C_Start_Hang]] | TEND polled after START — never fires, infinite hang |
 | [[RCA_I2C_ACK_NACK]] | ACKBT written before ACKWP; wrong last-byte index |
 | [[RCA_GPIO_Invalid_Port]] | Invalid port returned 0 (aliases PORT0) |
-| [[RCA_USB_CDC_NoEnumeration]] | DVST handler ignored SPD_DFLT (0x0050) → Code 43, device never enumerated |
+| [[RCA_USB_CDC_NoEnumeration]] | USB CDC reset loop / Code 43 — current focus is stable VBUS sampling and a DFLT-only FSP-like bus-reset path |
+| [[RCA_Flash_HP_PE_Entry_Timeout]] | FLASH HP timeout traced to wrong RA6M5 HP base, missing `FWEPROR` enable, and wrong Data Flash command path |
 
 ---
 

@@ -24,22 +24,25 @@
 /* -----------------------------------------------------------------------
  * Flash HP peripheral base address (RA6M5 HW manual §44.3.1)
  * ----------------------------------------------------------------------- */
-#define FLASH_HP_BASE   0x407EC000UL
+#define FLASH_HP_CMD_BASE 0x407E0000UL
+#define FLASH_HP_BASE     0x407FE000UL
+
+/* System register block used by FLASH HP access protection. */
+#define SYSTEM_BASE            0x4001E000UL
+#define SYSTEM_FWEPROR_OFF     0x416U
 
 /* -----------------------------------------------------------------------
  * Flash HP register offsets (all 32-bit unless noted)
  * ----------------------------------------------------------------------- */
-#define FLASH_HP_FPMCR_OFF   0x000U  /* Flash P/E Mode Control Register          */
-#define FLASH_HP_FSTATR_OFF  0x010U  /* Flash Status Register                    */
+#define FLASH_HP_FASTAT_OFF  0x010U  /* Flash Access Status Register             */
+#define FLASH_HP_FSTATR_OFF  0x080U  /* Flash Status Register                    */
 #define FLASH_HP_FENTRYR_OFF 0x084U  /* Flash P/E Entry Register  (16-bit)       */
 #define FLASH_HP_FSUINITR_OFF 0x08CU /* Flash Sequencer Set-up Initialization    */
-#define FLASH_HP_FCMDR_OFF   0x0A0U  /* Flash Command Register                   */
+#define FLASH_HP_FCMDR_OFF   0x0A0U  /* Flash Command Register (read-only)       */
 #define FLASH_HP_FSADDR_OFF  0x030U  /* Flash Start Address Register             */
 #define FLASH_HP_FEADDR_OFF  0x034U  /* Flash End   Address Register             */
-#define FLASH_HP_FCPSR_OFF   0x0E4U  /* Flash Sequencer Processing Switching     */
-#define FLASH_HP_FRESETR_OFF 0x008U  /* Flash Reset Register                     */
-#define FLASH_HP_FWBL0_OFF   0x280U  /* Flash Write Buffer L-word 0              */
-#define FLASH_HP_FWBH0_OFF   0x284U  /* Flash Write Buffer H-word 0              */
+#define FLASH_HP_FCPSR_OFF   0x0E0U  /* Flash Sequencer Processing Switching     */
+#define FLASH_HP_FPCKAR_OFF  0x0E4U  /* Flash Sequencer Clock Notification       */
 
 /* -----------------------------------------------------------------------
  * Register accessors
@@ -51,41 +54,43 @@
 #define FLASH_HP_REG8(off) \
     (*(volatile uint8_t  *)(uintptr_t)(FLASH_HP_BASE + (uint32_t)(off)))
 
-#define FPMCR    FLASH_HP_REG8 (FLASH_HP_FPMCR_OFF)
+#define FLASH_HP_CMD_REG16 \
+    (*(volatile uint16_t *)(uintptr_t)(FLASH_HP_CMD_BASE))
+#define FLASH_HP_CMD_REG8 \
+    (*(volatile uint8_t *)(uintptr_t)(FLASH_HP_CMD_BASE))
+
+#define SYSTEM_REG8(off) \
+    (*(volatile uint8_t *)(uintptr_t)(SYSTEM_BASE + (uint32_t)(off)))
+
+#define FASTAT   FLASH_HP_REG8 (FLASH_HP_FASTAT_OFF)
 #define FSTATR   FLASH_HP_REG32(FLASH_HP_FSTATR_OFF)
 #define FENTRYR  FLASH_HP_REG16(FLASH_HP_FENTRYR_OFF)
 #define FSUINITR FLASH_HP_REG16(FLASH_HP_FSUINITR_OFF)
-#define FCMDR    FLASH_HP_REG8 (FLASH_HP_FCMDR_OFF)
+#define FCMDR    FLASH_HP_REG16(FLASH_HP_FCMDR_OFF)
 #define FSADDR   FLASH_HP_REG32(FLASH_HP_FSADDR_OFF)
 #define FEADDR   FLASH_HP_REG32(FLASH_HP_FEADDR_OFF)
 #define FCPSR    FLASH_HP_REG16(FLASH_HP_FCPSR_OFF)
-#define FRESETR  FLASH_HP_REG16(FLASH_HP_FRESETR_OFF)
-#define FWBL0    FLASH_HP_REG32(FLASH_HP_FWBL0_OFF)
-#define FWBH0    FLASH_HP_REG32(FLASH_HP_FWBH0_OFF)
-
-/* -----------------------------------------------------------------------
- * FPMCR bits
- * ----------------------------------------------------------------------- */
-#define FPMCR_DFLR   (1U << 6)   /* Data Flash Read mode          */
-#define FPMCR_FMS1   (1U << 4)   /* Flash Mode Select bit 1       */
-#define FPMCR_FMS0   (1U << 1)   /* Flash Mode Select bit 0       */
-#define FPMCR_MS     (1U << 3)   /* Mode Select for Data Flash PE */
-
-/* FPMCR sequences for entering Data Flash P/E mode (§44.3.6):
- *   Step 1: write 0x10 (set FMS1)
- *   Step 2: write 0x12 (set FMS1 | FMS0)
- *   Step 3: write 0x13 (set FMS1 | FMS0 | DFLR) — not needed per Renesas app note */
+#define FPCKAR   FLASH_HP_REG16(FLASH_HP_FPCKAR_OFF)
+#define FWEPROR  SYSTEM_REG8(SYSTEM_FWEPROR_OFF)
 
 /* -----------------------------------------------------------------------
  * FSTATR bits (§44.3.13)
  * ----------------------------------------------------------------------- */
-#define FSTATR_FRDY    (1UL << 15)  /* Flash Ready: 1 = idle, can accept command */
-#define FSTATR_ILGLERR (1UL << 4)   /* Illegal Command Error                     */
-#define FSTATR_PRGERR  (1UL << 8)   /* Programming Error                         */
-#define FSTATR_ERSERR  (1UL << 9)   /* Erase Error                               */
-#define FSTATR_OTERR   (1UL << 5)   /* Over-cycle error                          */
+#define FASTAT_DFAE      (1U << 3)
+#define FASTAT_CMDLK     (1U << 4)
+#define FASTAT_CFAE      (1U << 7)
 
-#define FSTATR_ERROR_MASK  (FSTATR_ILGLERR | FSTATR_PRGERR | FSTATR_ERSERR | FSTATR_OTERR)
+#define FSTATR_FRDY      (1UL << 15) /* Flash Ready: 1 = idle, can accept command */
+#define FSTATR_FLWEERR   (1UL << 6)  /* Flash Write/Erase Protect Error           */
+#define FSTATR_PRGERR    (1UL << 12) /* Programming Error                         */
+#define FSTATR_ERSERR    (1UL << 13) /* Erase Error                               */
+#define FSTATR_ILGLERR   (1UL << 14) /* Illegal Command Error                     */
+#define FSTATR_OTERR     (1UL << 20) /* Other Error                               */
+#define FSTATR_FESETERR  (1UL << 22) /* FENTRY setting error                      */
+#define FSTATR_ILGCOMERR (1UL << 23) /* Illegal command error                     */
+
+#define FSTATR_ERROR_MASK \
+    (FSTATR_FLWEERR | FSTATR_PRGERR | FSTATR_ERSERR | FSTATR_ILGLERR | FSTATR_OTERR | FSTATR_FESETERR | FSTATR_ILGCOMERR)
 
 /* -----------------------------------------------------------------------
  * FENTRYR — Flash P/E Entry keys (§44.3.14)
@@ -96,10 +101,17 @@
 #define FENTRYR_KEY_DATA_PE   0xAA80U
 #define FENTRYR_KEY_READ      0xAA00U
 
+/* FPCKAR key and project FCLK notification value from drv_clk.c / configuration.xml. */
+#define FPCKAR_KEY_FCLK       0x1E00U
+#define FPCKAR_FCLK_MHZ       50U
+
+/* System.FWEPROR values used by FSP before Data Flash P/E entry. */
+#define FWEPROR_PE_ENABLE     0x01U
+
 /* -----------------------------------------------------------------------
  * Flash commands (§44.4)
  * ----------------------------------------------------------------------- */
-#define FLASH_CMD_PROGRAM     0xE8U   /* Program data (followed by word count)    */
+#define FLASH_CMD_PROGRAM     0xE8U   /* Program data (followed by halfword count) */
 #define FLASH_CMD_PROGRAM_CFM 0xD0U   /* Program confirm                          */
 #define FLASH_CMD_ERASE       0x20U   /* Block erase                              */
 #define FLASH_CMD_ERASE_CFM   0xD0U   /* Erase confirm                            */

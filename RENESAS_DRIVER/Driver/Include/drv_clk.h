@@ -21,12 +21,16 @@
 #define SCKSCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x026U))  /* System Clock Source Control     */
 #define PLLCCR      (*(volatile uint16_t *)(uintptr_t)(SYSC + 0x028U))  /* PLL Clock Control               */
 #define PLLCR       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x02AU))  /* PLL Control                     */
+#define PLL2CCR     (*(volatile uint16_t *)(uintptr_t)(SYSC + 0x048U))  /* PLL2 Clock Control              */
+#define PLL2CR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x04AU))  /* PLL2 Control                    */
 #define MOSCCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x032U))  /* Main Clock Oscillator Control   */
 #define HOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x036U))  /* HOCO Control                    */
 #define MOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x038U))  /* MOCO Control                    */
 #define OSCSF       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x03CU))  /* Oscillation Stabilization Flag  */
 #define MOSCWTCR    (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x0A2U))  /* Main Osc Wait Control           */
 #define MOMCR       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x413U))  /* Main Osc Mode Control           */
+#define USBCKDIVCR  (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x06CU))  /* USB Clock Division Control      */
+#define USBCKCR     (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x074U))  /* USB Clock Control               */
 
 #define FCACHE_BASE 0x4001C000UL
 #define SRAM_BASE   0x40002000UL
@@ -61,12 +65,14 @@
 #define SCKDIVCR_FCKPOS   28U    /* FCLK  [30:28] */
 
 #define PLLCR_PLLSTP      (1U << 0)
+#define PLL2CR_PLL2STP    (1U << 0)
 
 #define MOSCCR_MOSTP      (1U << 0)
 
 #define OSCSF_HOCOSF      (1U << 0)
 #define OSCSF_MOSCSF      (1U << 3)
 #define OSCSF_PLLSF       (1U << 5)
+#define OSCSF_PLL2SF      (1U << 6)
 
 #define MOSCWTCR_MSTS_9   0x09U
 
@@ -82,6 +88,16 @@
 #define PLL_SOURCE_MOSC      0U
 #define PLL_DIV_3            0x02U
 #define PLL_MUL_X25          49U
+
+#define PLL2_SOURCE_MOSC     0U
+#define PLL2_DIV_2           0x01U
+#define PLL2_MUL_X20         39U
+
+#define USBCKDIV_5           0x06U
+#define USBCKSEL_PLL2        0x06U
+#define USBCKCR_USBCKSEL_MASK 0x07U
+#define USBCKCR_USBCKSREQ    (1U << 6)
+#define USBCKCR_USBCKSRDY    (1U << 7)
 
 /* -----------------------------------------------------------------------
  * Module Stop Control registers  (RA6M5 HW Manual §10.2.4–10.2.7)

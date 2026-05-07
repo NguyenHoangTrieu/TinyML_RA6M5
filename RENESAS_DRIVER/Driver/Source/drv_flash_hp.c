@@ -27,6 +27,43 @@
  * ----------------------------------------------------------------------- */
 #define FLASH_WAIT_TIMEOUT  5000000UL
 
+#define FLASH_HP_DF_PROGRAM_BYTES      4UL
+#define FLASH_HP_DF_PROGRAM_HALFWORKS  2U
+
+static void flash_hp_issue_cmd8(uint8_t cmd)
+{
+    FLASH_HP_CMD_REG8 = cmd;
+}
+
+static void flash_hp_issue_cmd16(uint16_t value)
+{
+    FLASH_HP_CMD_REG16 = value;
+}
+
+static flash_hp_status_t flash_hp_status_clear(void)
+{
+    uint32_t timeout = FLASH_WAIT_TIMEOUT;
+
+    flash_hp_issue_cmd8(FLASH_CMD_STATUS_CLR);
+
+    while ((FSTATR & FSTATR_FRDY) == 0UL)
+    {
+        if (timeout == 0UL)
+        {
+            return FLASH_HP_ERR_TIMEOUT;
+        }
+
+        timeout--;
+    }
+
+    if ((FASTAT & (FASTAT_DFAE | FASTAT_CFAE)) != 0U)
+    {
+        FASTAT = 0U;
+    }
+
+    return FLASH_HP_OK;
+}
+
 /* -----------------------------------------------------------------------
  * Internal helper: wait for FSTATR.FRDY == 1 (flash sequencer idle).
  * Returns FLASH_HP_OK on ready, FLASH_HP_ERR_TIMEOUT on expiry.
@@ -45,11 +82,31 @@ static flash_hp_status_t flash_hp_wait_ready(void)
     }
 
     /* Check hardware error flags after ready */
-    if ((FSTATR & FSTATR_ERROR_MASK) != 0UL)
+    if (((FSTATR & FSTATR_ERROR_MASK) != 0UL) || ((FASTAT & FASTAT_CMDLK) != 0U))
     {
-        /* Clear error status before returning */
-        FCMDR = FLASH_CMD_STATUS_CLR;
+        (void)flash_hp_status_clear();
         return FLASH_HP_ERR_HW;
+    }
+
+    return FLASH_HP_OK;
+}
+
+/* -----------------------------------------------------------------------
+ * Internal helper: wait until FENTRYR reaches the expected mode value.
+ * For FLASH HP on RA6M5, Data Flash P/E entry/exit is confirmed via FENTRYR,
+ * not by polling FRDY immediately after writing the entry key.
+ * ----------------------------------------------------------------------- */
+static flash_hp_status_t flash_hp_wait_fentryr(uint16_t expected)
+{
+    uint32_t timeout = FLASH_WAIT_TIMEOUT;
+
+    while (FENTRYR != expected)
+    {
+        timeout--;
+        if (timeout == 0UL)
+        {
+            return FLASH_HP_ERR_TIMEOUT;
+        }
     }
 
     return FLASH_HP_OK;
@@ -60,9 +117,9 @@ static flash_hp_status_t flash_hp_wait_ready(void)
  * ----------------------------------------------------------------------- */
 static void flash_hp_clear_errors(void)
 {
-    if ((FSTATR & FSTATR_ERROR_MASK) != 0UL)
+    if (((FSTATR & FSTATR_ERROR_MASK) != 0UL) || ((FASTAT & (FASTAT_DFAE | FASTAT_CFAE | FASTAT_CMDLK)) != 0U))
     {
-        FCMDR = FLASH_CMD_STATUS_CLR;
+        (void)flash_hp_status_clear();
 
         /* Brief wait for status clear to propagate */
         for (volatile uint32_t i = 0U; i < 100U; i++)
@@ -111,39 +168,29 @@ flash_hp_status_t flash_hp_init(void)
 {
     flash_hp_status_t status;
 
-    /* Step 1: enable data flash P/E mode in FENTRYR */
-    FENTRYR = FENTRYR_KEY_DATA_PE;
+    /* Allow FLASH HP program/erase access before entering Data Flash P/E mode. */
+    FWEPROR = FWEPROR_PE_ENABLE;
 
-    /* Brief stabilization delay (≥ 4 FCLK cycles per §44.4.3) */
-    for (volatile uint32_t i = 0U; i < 50U; i++)
-    {
-        __asm volatile("nop");
-    }
-
-    /* Step 2: wait for flash sequencer to be ready */
     status = flash_hp_wait_ready();
     if (status != FLASH_HP_OK)
     {
         return status;
     }
 
+    /* Notify the FLASH HP sequencer of the current 50 MHz FCLK. */
+    FPCKAR = (uint16_t)(FPCKAR_KEY_FCLK | FPCKAR_FCLK_MHZ);
+
+    /* Step 1: enable data flash P/E mode in FENTRYR */
+    FENTRYR = FENTRYR_KEY_DATA_PE;
+
+    /* FLASH HP confirms Data Flash P/E transition by reflecting 0x0080 in FENTRYR. */
+    status = flash_hp_wait_fentryr((uint16_t)(FENTRYR_KEY_DATA_PE & 0x00FFU));
+    if (status != FLASH_HP_OK)
+    {
+        return status;
+    }
+
     flash_hp_clear_errors();
-
-    /* Step 3: FPMCR transition — set FMS1 first */
-    FPMCR = (uint8_t)0x10U;
-
-    for (volatile uint32_t i = 0U; i < 20U; i++)
-    {
-        __asm volatile("nop");
-    }
-
-    /* Step 4: FPMCR — set FMS1 | FMS0 = Data Flash P/E mode */
-    FPMCR = (uint8_t)0x12U;
-
-    for (volatile uint32_t i = 0U; i < 20U; i++)
-    {
-        __asm volatile("nop");
-    }
 
     return FLASH_HP_OK;
 }
@@ -154,30 +201,10 @@ flash_hp_status_t flash_hp_init(void)
  * ----------------------------------------------------------------------- */
 void flash_hp_exit(void)
 {
-    /* Reverse FPMCR — step back through intermediate state */
-    FPMCR = (uint8_t)0x10U;
-
-    for (volatile uint32_t i = 0U; i < 20U; i++)
-    {
-        __asm volatile("nop");
-    }
-
-    /* Return FPMCR to read mode (FMS bits cleared) */
-    FPMCR = (uint8_t)0x00U;
-
-    for (volatile uint32_t i = 0U; i < 20U; i++)
-    {
-        __asm volatile("nop");
-    }
-
-    /* Exit FENTRYR — write read-mode key */
+    /* FLASH HP returns to read mode by clearing the P/E mode bits in FENTRYR. */
     FENTRYR = FENTRYR_KEY_READ;
 
-    /* Stabilization delay */
-    for (volatile uint32_t i = 0U; i < 50U; i++)
-    {
-        __asm volatile("nop");
-    }
+    (void)flash_hp_wait_fentryr(0U);
 }
 
 /* -----------------------------------------------------------------------
@@ -218,6 +245,9 @@ flash_hp_status_t flash_hp_erase(uint32_t addr, uint32_t num_blocks)
 
     block_addr = addr;
 
+    /* Match FSP data-flash erase path: use erasure priority mode. */
+    FCPSR = 1U;
+
     for (block_idx = 0UL; block_idx < num_blocks; block_idx++)
     {
         /* Set the block start address in FSADDR */
@@ -229,13 +259,8 @@ flash_hp_status_t flash_hp_erase(uint32_t addr, uint32_t num_blocks)
          * Per §44.4.4: write erase command code to FACI command-issuing area.
          *
          * The command-issuing area for Data Flash is at 0xFE7F5000 + word offset. */
-        {
-            /* FACI Command-issuing area: write byte commands here */
-            volatile uint8_t * const p_faci = (volatile uint8_t *)(uintptr_t)0xFE7F5000UL;
-
-            *p_faci = FLASH_CMD_ERASE;       /* Block Erase setup command  */
-            *p_faci = FLASH_CMD_ERASE_CFM;   /* Block Erase confirm command */
-        }
+        flash_hp_issue_cmd8(FLASH_CMD_ERASE);
+        flash_hp_issue_cmd8(FLASH_CMD_ERASE_CFM);
 
         /* Wait for erase completion */
         status = flash_hp_wait_ready();
@@ -265,11 +290,10 @@ flash_hp_status_t flash_hp_erase(uint32_t addr, uint32_t num_blocks)
  * ----------------------------------------------------------------------- */
 flash_hp_status_t flash_hp_write(uint32_t addr, uint8_t const * const p_src, uint32_t len)
 {
-    flash_hp_status_t        status;
-    uint32_t                 bytes_remaining;
-    uint32_t                 write_addr;
-    uint32_t                 src_offset;
-    volatile uint8_t * const p_faci = (volatile uint8_t *)(uintptr_t)0xFE7F5000UL;
+    flash_hp_status_t status;
+    uint32_t          bytes_remaining;
+    uint32_t          write_addr;
+    uint32_t          src_offset;
 
     /* Parameter validation */
     if (p_src == NULL)
@@ -299,50 +323,17 @@ flash_hp_status_t flash_hp_write(uint32_t addr, uint8_t const * const p_src, uin
 
     while (bytes_remaining > 0UL)
     {
-        /* Cap at 256 bytes (64 words) per program command */
-        uint32_t chunk_bytes = bytes_remaining;
-        if (chunk_bytes > DATA_FLASH_WRITE_PAGE_SIZE)
-        {
-            chunk_bytes = DATA_FLASH_WRITE_PAGE_SIZE;
-        }
-        uint32_t word_count = chunk_bytes / DATA_FLASH_WRITE_WORD_SIZE;
-
         /* Set destination address in FSADDR */
         FSADDR = write_addr;
 
-        /* Issue Program command */
-        *p_faci = FLASH_CMD_PROGRAM;
-
-        /* Write word count (lower 8 bits of count) */
-        *p_faci = (uint8_t)(word_count & 0xFFUL);
-
-        /* Write data words — 4 bytes per word, LSB first */
-        {
-            uint32_t word_idx;
-            for (word_idx = 0UL; word_idx < word_count; word_idx++)
-            {
-                uint32_t byte_offset = src_offset + (word_idx * DATA_FLASH_WRITE_WORD_SIZE);
-                uint32_t word_val;
-
-                /* Assemble 32-bit word from byte buffer (little-endian) */
-                word_val  = (uint32_t)p_src[byte_offset + 0UL];
-                word_val |= (uint32_t)p_src[byte_offset + 1UL] << 8U;
-                word_val |= (uint32_t)p_src[byte_offset + 2UL] << 16U;
-                word_val |= (uint32_t)p_src[byte_offset + 3UL] << 24U;
-
-                /* Write lower 16 bits then upper 16 bits to FACI */
-                {
-                    volatile uint16_t * const p_faci16 =
-                        (volatile uint16_t *)(uintptr_t)0xFE7F5000UL;
-
-                    *p_faci16 = (uint16_t)(word_val & 0xFFFFUL);
-                    *p_faci16 = (uint16_t)((word_val >> 16U) & 0xFFFFUL);
-                }
-            }
-        }
-
-        /* Issue Program Confirm */
-        *p_faci = FLASH_CMD_PROGRAM_CFM;
+        /* FLASH HP data flash programs 4 bytes per command, with a count of two halfwords. */
+        flash_hp_issue_cmd8(FLASH_CMD_PROGRAM);
+        flash_hp_issue_cmd8(FLASH_HP_DF_PROGRAM_HALFWORKS);
+        flash_hp_issue_cmd16((uint16_t)((uint16_t)p_src[src_offset + 0UL]
+                           | ((uint16_t)p_src[src_offset + 1UL] << 8U)));
+        flash_hp_issue_cmd16((uint16_t)((uint16_t)p_src[src_offset + 2UL]
+                           | ((uint16_t)p_src[src_offset + 3UL] << 8U)));
+        flash_hp_issue_cmd8(FLASH_CMD_PROGRAM_CFM);
 
         /* Wait for program completion */
         status = flash_hp_wait_ready();
@@ -350,10 +341,9 @@ flash_hp_status_t flash_hp_write(uint32_t addr, uint8_t const * const p_src, uin
         {
             return status;
         }
-
-        src_offset      += chunk_bytes;
-        write_addr      += chunk_bytes;
-        bytes_remaining -= chunk_bytes;
+        src_offset      += FLASH_HP_DF_PROGRAM_BYTES;
+        write_addr      += FLASH_HP_DF_PROGRAM_BYTES;
+        bytes_remaining -= FLASH_HP_DF_PROGRAM_BYTES;
     }
 
     return FLASH_HP_OK;

@@ -50,6 +50,12 @@ The final 64-byte block is intentionally reserved so the flash test task does no
 4. If payload length is not a multiple of 4, pad the tail with `0xFF` before `flash_hp_write()`.
 5. Exit P/E mode with `flash_hp_exit()` before normal read-back verification.
 
+FLASH HP P/E transition note:
+- On this RA6M5 FLASH HP path, entry/exit confirmation is taken from `FENTRYR`.
+- Enter Data Flash P/E: write `0xAA80`, then wait until `FENTRYR == 0x0080`.
+- Exit to read mode: write `0xAA00`, then wait until `FENTRYR == 0x0000`.
+- See [[RCA_Flash_HP_PE_Entry_Timeout]] for the timeout bug caused by waiting on the wrong condition.
+
 That rule is applied in two places:
 - `fwupdate_receiver.c` pads incoming UART payloads to the 4-byte write unit.
 - `test_flash_nvs.c` pads a 21-byte sample pattern before programming the scratch block.

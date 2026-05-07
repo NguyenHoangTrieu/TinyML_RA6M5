@@ -81,6 +81,8 @@ static const char *usb_trace_state_name(uint16_t state)
         case USB_DBG_STATE_STATUS_STAGE: return "STATUS_STAGE";
         case USB_DBG_STATE_PULLUP_ENABLED: return "PULLUP_ENABLED";
         case USB_DBG_STATE_BUS_RESET_REARM: return "BUS_RESET_REARM";
+        case USB_DBG_STATE_PULLUP_DISABLED: return "PULLUP_DISABLED";
+        case USB_DBG_STATE_CTRL_IN_PACKET: return "CTRL_IN_PACKET";
         default: return "STATE_UNKNOWN";
     }
 }

@@ -35,6 +35,8 @@ static void flash_nvs_test_suspend_forever(void)
 static void task_flash_nvs_test(void *arg)
 {
     flash_hp_status_t status = FLASH_HP_OK;
+    const char * stage = "init";
+    const char * fail_stage = "init";
     volatile uint8_t const * p_flash =
         (volatile uint8_t const *)(uintptr_t)DATA_FLASH_LAST_BLOCK_ADDR;
     uint8_t write_buf[FLASH_NVS_TEST_WRITE_LEN];
@@ -45,6 +47,11 @@ static void task_flash_nvs_test(void *arg)
     uint8_t actual_byte = 0U;
     uint8_t compare_ok = 1U;
     uint8_t flash_active = 0U;
+    uint32_t fail_fstatr = 0UL;
+    uint16_t fail_fentryr = 0U;
+    uint8_t fail_fastat = 0U;
+    uint32_t fail_fsaddr = 0UL;
+    uint16_t fail_fcmdr = 0U;
 
     (void)arg;
 
@@ -71,14 +78,27 @@ static void task_flash_nvs_test(void *arg)
     if (status == FLASH_HP_OK)
     {
         flash_active = 1U;
+        stage = "erase";
         status = flash_hp_erase(DATA_FLASH_LAST_BLOCK_ADDR, 1U);
     }
 
     if (status == FLASH_HP_OK)
     {
+        stage = "write";
         status = flash_hp_write(DATA_FLASH_LAST_BLOCK_ADDR, write_buf, FLASH_NVS_TEST_WRITE_LEN);
     }
 
+    if (status != FLASH_HP_OK)
+    {
+        fail_stage = stage;
+        fail_fstatr = FSTATR;
+        fail_fentryr = FENTRYR;
+        fail_fastat = FASTAT;
+        fail_fsaddr = FSADDR;
+        fail_fcmdr = FCMDR;
+    }
+
+    stage = "exit";
     if (flash_active != 0U)
     {
         flash_hp_exit();
@@ -86,6 +106,7 @@ static void task_flash_nvs_test(void *arg)
 
     if (status == FLASH_HP_OK)
     {
+        stage = "verify";
         for (index = 0UL; index < FLASH_NVS_TEST_RAW_LEN; index++)
         {
             read_buf[index] = p_flash[index];
@@ -102,7 +123,14 @@ static void task_flash_nvs_test(void *arg)
 
     if (status != FLASH_HP_OK)
     {
-        debug_print("[FLASH NVS TEST] FAIL status=%u\r\n", (unsigned int)status);
+        debug_print("[FLASH NVS TEST] FAIL status=%u stage=%s FSTATR=0x%x FENTRYR=0x%x FASTAT=0x%x FSADDR=0x%x FCMDR=0x%x\r\n",
+                    (unsigned int)status,
+                    fail_stage,
+                    (unsigned int)fail_fstatr,
+                    (unsigned int)fail_fentryr,
+                    (unsigned int)fail_fastat,
+                    (unsigned int)fail_fsaddr,
+                    (unsigned int)fail_fcmdr);
     }
     else if (compare_ok != 0U)
     {

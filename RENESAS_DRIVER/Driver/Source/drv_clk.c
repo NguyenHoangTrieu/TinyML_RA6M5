@@ -4,7 +4,7 @@
 /* -----------------------------------------------------------------------
  * CLK_Init — bring the current project to its configured 200 MHz state.
  *
- * Source of truth:
+ * Source of truth for the system clocks:
  *   configuration.xml
  *   - XTAL   = 24 MHz crystal
  *   - PLL    = XTAL / 3 * 25.0 = 200 MHz
@@ -16,9 +16,42 @@
  *   - BCLK   = 100 MHz
  *   - FCLK   =  50 MHz
  *
+ * USBFS on RA6M5 also needs a dedicated 48 MHz UCLK.  We derive that from
+ * PLL2 = XTAL / 2 * 20.0 = 240 MHz, then UCLK = PLL2 / 5 = 48 MHz.
+ *
  * The RA6M5 requires flash and SRAM wait states before raising ICLK.
  * Those settings are mirrored from the FSP-generated reference project.
  * ----------------------------------------------------------------------- */
+static void clk_start_pll2_for_usb(void)
+{
+    PLL2CCR = (uint16_t)(((uint16_t)PLL2_MUL_X20 << PLLCCR_PLLMUL_POS)
+            | ((uint16_t)PLL2_SOURCE_MOSC << PLLCCR_PLSRCSEL_POS)
+            | (uint16_t)PLL2_DIV_2);
+    PLL2CR &= (uint8_t)~PLL2CR_PLL2STP;
+    while ((OSCSF & OSCSF_PLL2SF) == 0U)
+    {
+        __asm volatile ("nop");
+    }
+}
+
+static void clk_configure_usbfs_clock(void)
+{
+    USBCKCR = (uint8_t)((USBCKCR & USBCKCR_USBCKSEL_MASK) | USBCKCR_USBCKSREQ);
+    while ((USBCKCR & USBCKCR_USBCKSRDY) == 0U)
+    {
+        __asm volatile ("nop");
+    }
+
+    USBCKDIVCR = USBCKDIV_5;
+    USBCKCR = (uint8_t)(USBCKSEL_PLL2 | USBCKCR_USBCKSREQ);
+    USBCKCR = USBCKSEL_PLL2;
+
+    while ((USBCKCR & USBCKCR_USBCKSRDY) != 0U)
+    {
+        __asm volatile ("nop");
+    }
+}
+
 void CLK_Init(void)
 {
     RWP_Unlock_Clock_MSTP();
@@ -44,6 +77,8 @@ void CLK_Init(void)
         __asm volatile ("nop");
     }
 
+    clk_start_pll2_for_usb();
+
     /* XTAL / 3 * 25.0 = 200 MHz, per configuration.xml and RA6M5 PLL type 1 encoding. */
     PLLCCR = (uint16_t)(((uint16_t)PLL_MUL_X25 << PLLCCR_PLLMUL_POS)
            | ((uint16_t)PLL_SOURCE_MOSC << PLLCCR_PLSRCSEL_POS)
@@ -63,6 +98,7 @@ void CLK_Init(void)
              | ((uint32_t)SCKDIV_4 << SCKDIVCR_FCKPOS);  /* FCLK  =  50 MHz */
 
     SCKSCR = SCKSCR_PLL;
+    clk_configure_usbfs_clock();
 
     RWP_Lock_Clock_MSTP();
 }

@@ -42,5 +42,5 @@ Thumbs.db
 TESTING_2.srec
 
 .cache/
-
+ra/
 tflite-micro-main/
