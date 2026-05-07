@@ -10,6 +10,10 @@ Firmware layer using this block: [[FW_USB_Driver]].
 ## Peripheral Map
 
 - Base address used by current driver: `0x40090000` (USBFS0)
+- Current runtime pin bring-up done manually in firmware because generated `g_bsp_pin_cfg` code is not present in this repo:
+  - `P407` = `USBFS_VBUS` peripheral function
+  - `P501` = `USBFS_OVRCURA` peripheral function in host mode
+  - `P500` = board VBUS switch driven as GPIO output by firmware
 - Data path blocks in use:
   - Device control pipe: EP0 / DCP (`DCPMAXP`, `DCPCTR`, setup packet regs)
   - FIFO ports: `CFIFO`, `D0FIFO`, `D1FIFO`
@@ -39,6 +43,7 @@ Firmware layer using this block: [[FW_USB_Driver]].
 
 - `SYSCFG.DCFM = 0` (device role)
 - `SYSCFG.DPRPU = 1` enables pull-up to announce FS device
+- Requires `P407` VBUS-sense pin to be switched into USBFS peripheral mode before `SYSCFG.USBE/DPRPU`
 - EP0 handles standard + class CDC requests
 - Bulk IN endpoint used for logging stream
 
@@ -46,6 +51,7 @@ Firmware layer using this block: [[FW_USB_Driver]].
 
 - `SYSCFG.DCFM = 1` (host role)
 - `SYSCFG.DRPD = 1` enables host-side pull-downs for attach detection
+- `P407` is used for USBFS VBUS sense and `P501` for overcurrent input
 - VBUS power switch is enabled through board pin `P500` (`USBFS_VBUS_EN`)
 - Enumeration uses line-state monitoring (`SYSSTS0.LNST`) + bus reset (`DVSTCTR0`)
 

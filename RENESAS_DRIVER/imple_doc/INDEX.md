@@ -23,6 +23,7 @@ Tags: #in-progress #system
 | [[HW_RA6M5_GPIO]] | Port control, PFS, PWPR, PmnPFS_PSEL bits[28:24] |
 | [[HW_RA6M5_RWP]] | PRCR register, write key 0xA5, PRC0/PRC1 |
 | [[HW_RA6M5_USBFS]] | USBFS host/device role, EP0, FIFO, PIPE, interrupt groups |
+| [[HW_RA6M5_DataFlash]] | Data Flash map, 64-byte erase blocks, 4-byte write unit, scratch block allocation |
 
 ---
 
@@ -36,6 +37,7 @@ Tags: #in-progress #system
 | [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
 | [[FW_USB_Driver]] | `drv_usb.h/.c` — USBFS dual-mode (Device CDC log + Host CDC-ACM) |
+| [[FW_FWUpdate_Receiver]] | `fwupdate_receiver.h/.c` — UART framed model transfer, CRC, ACK/NACK, Data Flash writes |
 | [[FW_TestFramework]] | `test_runner.h/.c` — shared test framework, currently used by IAQ and RTOS suites |
 | [[FW_RTOS_Test]] | Khịch bản test preemptive scheduling |
 | [[RCA_RTOS_Preemptive_Verification]] | Phân tích xác nhận PASS là hợp lệ |
@@ -79,6 +81,7 @@ Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 | [[RCA_I2C_Start_Hang]] | TEND polled after START — never fires, infinite hang |
 | [[RCA_I2C_ACK_NACK]] | ACKBT written before ACKWP; wrong last-byte index |
 | [[RCA_GPIO_Invalid_Port]] | Invalid port returned 0 (aliases PORT0) |
+| [[RCA_USB_CDC_NoEnumeration]] | DVST handler ignored SPD_DFLT (0x0050) → Code 43, device never enumerated |
 
 ---
 
@@ -100,7 +103,7 @@ Phase 3 (BSP): Sensor drivers over verified I2C/UART layer.
 | AHT20 BSP (Phase 3) | ✅ Complete — [[BSP_AHT20]] |
 | ZMOD4410 BSP (Phase 3) | 🟡 Partial — [[BSP_ZMOD4410]] raw transport only, no Renesas algorithm yet |
 | AQI TFLite Inference | ✅ Complete — [[FW_TFLite_Integration]] |
-| USBFS dual-mode driver | 🟡 In progress — [[FW_USB_Driver]], [[HW_RA6M5_USBFS]] |
+| USBFS dual-mode driver | 🔴 Bug fixed — [[FW_USB_Driver]], [[HW_RA6M5_USBFS]], [[RCA_USB_CDC_NoEnumeration]] — pending hardware re-test |
 | Hardware-in-loop test | 🔲 Pending |
 
 ---

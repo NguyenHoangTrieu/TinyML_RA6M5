@@ -18,6 +18,7 @@
 #include "semaphore.h"
 #include "software_timer.h"
 #include "test/test_iaq.h"
+#include "test/test_flash_nvs.h"
 #include "test/test_rtos.h"
 #include "test/test_usb.h"
 #include <stdint.h>
@@ -197,6 +198,13 @@ int main(void) {
   test_usb_host_descriptor_init();
 #else
   debug_print("[USB TEST] Mode: disabled\r\n");
+#endif
+
+#if OS_FLASH_NVS_TEST_ENABLE != 0U
+  debug_print("[FLASH NVS TEST] Mode: scratch-block self-test\r\n");
+  test_flash_nvs_init();
+#else
+  debug_print("[FLASH NVS TEST] Mode: disabled\r\n");
 #endif
 
   status = OS_SemCreate(&g_led_timer_sem, 0U, 1U);

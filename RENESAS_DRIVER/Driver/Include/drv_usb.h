@@ -48,6 +48,57 @@ typedef struct
     uint8_t configuration_value;
 } usb_host_descriptor_snapshot_t;
 
+typedef enum
+{
+    USB_DBG_EVT_INIT = 1,
+    USB_DBG_EVT_DVST = 2,
+    USB_DBG_EVT_CTRT = 3,
+    USB_DBG_EVT_SETUP = 4,
+    USB_DBG_EVT_STATE = 5,
+    USB_DBG_EVT_LINE_CODING = 6,
+    USB_DBG_EVT_STALL = 7,
+    USB_DBG_EVT_ERROR = 8
+} usb_debug_event_t;
+
+typedef enum
+{
+    USB_DBG_STATE_GET_DESCRIPTOR = 1,
+    USB_DBG_STATE_SET_ADDRESS = 2,
+    USB_DBG_STATE_SET_CONFIGURATION = 3,
+    USB_DBG_STATE_SET_INTERFACE = 4,
+    USB_DBG_STATE_SET_LINE_CODING_PENDING = 5,
+    USB_DBG_STATE_GET_LINE_CODING = 6,
+    USB_DBG_STATE_SET_CONTROL_LINE_STATE = 7,
+    USB_DBG_STATE_SEND_BREAK = 8,
+    USB_DBG_STATE_SW_CONFIGURED = 9,
+    USB_DBG_STATE_STATUS_STAGE = 10,
+    USB_DBG_STATE_PULLUP_ENABLED = 11,
+    USB_DBG_STATE_BUS_RESET_REARM = 12
+} usb_debug_state_t;
+
+typedef enum
+{
+    USB_DBG_STALL_UNSUPPORTED_STANDARD = 1,
+    USB_DBG_STALL_UNSUPPORTED_CLASS = 2,
+    USB_DBG_STALL_UNSUPPORTED_TYPE = 3,
+    USB_DBG_STALL_CONTROL_SEQUENCE = 4,
+    USB_DBG_STALL_SET_LINE_CODING_DATA = 5
+} usb_debug_stall_reason_t;
+
+typedef enum
+{
+    USB_DBG_ERROR_SET_LINE_CODING_READ = 1
+} usb_debug_error_t;
+
+typedef struct
+{
+    uint8_t event;
+    uint16_t param0;
+    uint16_t param1;
+    uint16_t param2;
+    uint16_t param3;
+} usb_debug_trace_t;
+
 /* -----------------------------------------------------------------------
  * Driver lifecycle
  * ----------------------------------------------------------------------- */
@@ -60,6 +111,8 @@ void USB_Deinit(void);
 void USB_PollEvents(void);
 void USBI0_IRQHandler(void);
 void USBI1_IRQHandler(void);
+uint8_t USB_Debug_PopTrace(usb_debug_trace_t *trace);
+uint16_t USB_Debug_GetDroppedTraceCount(void);
 
 /* -----------------------------------------------------------------------
  * Device CDC API (logging)
