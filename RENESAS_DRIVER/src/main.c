@@ -19,6 +19,7 @@
 #include "software_timer.h"
 #include "test/test_iaq.h"
 #include "test/test_rtos.h"
+#include "test/test_usb.h"
 #include <stdint.h>
 
 #define LED_PORT GPIO_PORT0
@@ -187,6 +188,16 @@ int main(void) {
 
   /* Initialize AI Inference Test Task (runs with synthetic sensor data) */
   test_iaq_inference_init();
+
+#if OS_USB_TEST_MODE == OS_USB_TEST_MODE_DEVICE_CDC
+  debug_print("[USB TEST] Mode: Device CDC logger task\r\n");
+  test_usb_cdc_logger_init();
+#elif OS_USB_TEST_MODE == OS_USB_TEST_MODE_HOST_DESCRIPTOR
+  debug_print("[USB TEST] Mode: Host descriptor test task\r\n");
+  test_usb_host_descriptor_init();
+#else
+  debug_print("[USB TEST] Mode: disabled\r\n");
+#endif
 
   status = OS_SemCreate(&g_led_timer_sem, 0U, 1U);
   if (status != OS_OK) {

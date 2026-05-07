@@ -1,9 +1,0 @@
-device R7FA6M5BH
-si SWD
-speed 4000
-connect
-erase
-loadfile build\TESTING_2.srec
-r
-g
-exit

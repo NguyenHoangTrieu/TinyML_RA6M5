@@ -27,7 +27,7 @@
 # ---------------------------------------------------------------------------
 # Project sources (warnings enabled — these are our own files)
 # ---------------------------------------------------------------------------
-file(GLOB_RECURSE Source_Files
+file(GLOB_RECURSE Source_Files CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Source/*.c
@@ -37,7 +37,7 @@ file(GLOB_RECURSE Source_Files
 # ---------------------------------------------------------------------------
 # TFLite Micro sources (compiled with -w to suppress third-party warnings)
 # ---------------------------------------------------------------------------
-file(GLOB_RECURSE TFLite_Source_Files
+file(GLOB_RECURSE TFLite_Source_Files CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite/**/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/TensorFlowLite/**/*.cc
 )
@@ -61,10 +61,10 @@ list(FILTER TFLite_Source_Files EXCLUDE REGEX ".*(arc_custom|arc_emsdp|arc_mli|b
 # ---------------------------------------------------------------------------
 # RTOS Kernel — C implementation and Cortex-M33 assembly port
 # ---------------------------------------------------------------------------
-file(GLOB_RECURSE Kernel_C_Files
+file(GLOB_RECURSE Kernel_C_Files CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/src/*.c
 )
-file(GLOB_RECURSE Kernel_ASM_Files
+file(GLOB_RECURSE Kernel_ASM_Files CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/port/*.S
 )
 
