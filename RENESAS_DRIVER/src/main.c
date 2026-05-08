@@ -1,15 +1,13 @@
 /**
  * @file    main.c
- * @brief   RTOS application test for scheduler, software timer, and AHT20.
+ * @brief   RTOS application test for scheduler and software timer services.
  *
  * Tasks:
  *   1. LED1 blink task            → toggles via OS_Task_Delay()
- *   2. Sensor logger task         → reads AHT20 and prints samples
- *   3. LED2 timer task            → wakes on semaphore posted by software timer
+ *   2. LED2 timer task            → wakes on semaphore posted by software timer
  */
 
 #include "GPIO.h"
-#include "bsp_aht20.h"
 #include "debug_print.h"
 #include "drv_i2c.h"
 #include "drv_uart.h"
@@ -17,6 +15,7 @@
 #include "rtos_config.h"
 #include "semaphore.h"
 #include "software_timer.h"
+#include "test/app_test_config.h"
 #include "test/test_iaq.h"
 #include "test/test_flash_nvs.h"
 #include "test/test_rtos.h"
@@ -28,7 +27,6 @@
 #define LED2_PIN 7U
 #define LED3_PIN 8U
 
-#define TASK_PRIO_SENSOR 2U
 #define TASK_PRIO_LED_TIMER 3U
 #define TASK_PRIO_LED_BLINK 4U
 
@@ -40,7 +38,6 @@
 #define LED3_OFF() GPIO_Write_Pin(LED_PORT, LED3_PIN, GPIO_PIN_RESET)
 
 static OS_TCB_t g_led_blink_tcb;
-static OS_TCB_t g_sensor_tcb;
 static OS_TCB_t g_timer_led_tcb;
 static Semaphore_t g_led_timer_sem;
 static Timer_t g_led_timer;
@@ -86,8 +83,7 @@ static void i2c_scan(I2C_t i2c) {
     I2C_Stop(i2c);
 
     if (ack != 0U) {
-      debug_print("  [0x%x] ACK%s\r\n", (unsigned)addr,
-                  (addr == AHT20_I2C_ADDR) ? " <- AHT20" : "");
+      debug_print("  [0x%x] ACK\r\n", (unsigned)addr);
       count++;
     }
   }
@@ -111,33 +107,6 @@ static void task_led_blink(void *arg) {
   for (;;) {
     led_toggle(LED1_PIN);
     OS_Task_Delay(250U);
-  }
-}
-
-static void task_sensor_logger(void *arg) {
-  uint32_t sample = 0U;
-  (void)arg;
-
-  for (;;) {
-    AHT20_Data_t data;
-    AHT20_Status_t st = AHT20_Read(I2C1, &data);
-
-    if (st == AHT20_OK) {
-      int32_t t10 = (int32_t)(data.temperature_c * 10.0f);
-      int32_t rh10 = (int32_t)(data.humidity_pct * 10.0f);
-
-      debug_print("[sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n", (unsigned)sample,
-                  (int)(t10 / 10), (unsigned)((uint32_t)t10 % 10U),
-                  (int)(rh10 / 10), (unsigned)((uint32_t)rh10 % 10U));
-      LED3_ON();
-    } else {
-      debug_print("[sensor:%u] AHT20 err=%u (1=NACK 2=BUSY 3=TIMEOUT)\r\n",
-                  (unsigned)sample, (unsigned)st);
-      led_toggle(LED3_PIN);
-    }
-
-    sample++;
-    OS_Task_Delay(2000U);
   }
 }
 
@@ -180,7 +149,6 @@ int main(void) {
   I2C_Init(I2C1, 50U, I2C_SPEED_STANDARD);
   i2c_scan(I2C1);
   delay_ms_bm(120U);
-  AHT20_Init(I2C1);
 
   OS_Init();
 
@@ -224,12 +192,6 @@ int main(void) {
     app_panic("OS_Task_Create led_blink", status);
   }
 
-  status = OS_Task_Create(&g_sensor_tcb, task_sensor_logger, (void *)0,
-                          TASK_PRIO_SENSOR, "sensor");
-  if (status != OS_OK) {
-    app_panic("OS_Task_Create sensor", status);
-  }
-
   status = OS_Task_Create(&g_timer_led_tcb, task_timer_led, (void *)0,
                           TASK_PRIO_LED_TIMER, "led_timer");
   if (status != OS_OK) {
@@ -241,7 +203,7 @@ int main(void) {
     app_panic("OS_TimerStart", status);
   }
 
-  debug_print("Tasks ready: LED1 blink, AHT20 logger, LED2 timer blink\r\n");
+  debug_print("Tasks ready: LED1 blink, LED2 timer blink\r\n");
   LED3_ON();
 
   OS_Start();

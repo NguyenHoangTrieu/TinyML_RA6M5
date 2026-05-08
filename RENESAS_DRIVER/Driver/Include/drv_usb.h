@@ -5,6 +5,15 @@
 #include "drv_common.h"
 
 /*
+ * Device CDC host-ready policy:
+ *   0: host-ready when USB is configured (lenient, no DTR required)
+ *   1: host-ready only after SET_CONTROL_LINE_STATE asserts DTR/RTS
+ */
+#ifndef USB_DEV_CDC_REQUIRE_DTR
+#define USB_DEV_CDC_REQUIRE_DTR 0U
+#endif
+
+/*
  * drv_usb.h — RA6M5 USBFS bare-metal dual-mode driver.
  *
  * Supported modes:

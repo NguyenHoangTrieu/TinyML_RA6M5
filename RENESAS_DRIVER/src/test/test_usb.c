@@ -242,6 +242,7 @@ static void usb_hex_dump(const uint8_t *data, uint32_t len)
 static void task_usb_cdc_logger(void *arg)
 {
     uint32_t elapsed_ms = 0U;
+    uint32_t waiting_log_ms = 0U;
     uint32_t seq = 0U;
     uint8_t last_configured = 0U;
     uint8_t last_host_ready = 0U;
@@ -301,8 +302,15 @@ static void task_usb_cdc_logger(void *arg)
             elapsed_ms = 0U;
         }
 
+        if ((configured != 0U) && (host_ready == 0U) && (waiting_log_ms >= 2000U))
+        {
+            debug_print("[USB CDC TEST] waiting host open (SET_CONTROL_LINE_STATE DTR=1)\r\n");
+            waiting_log_ms = 0U;
+        }
+
         OS_Task_Delay(USB_CDC_POLL_PERIOD_MS);
         elapsed_ms += USB_CDC_POLL_PERIOD_MS;
+        waiting_log_ms += USB_CDC_POLL_PERIOD_MS;
     }
 }
 

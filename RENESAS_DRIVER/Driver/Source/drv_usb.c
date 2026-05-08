@@ -766,7 +766,7 @@ static drv_status_t usb_device_wait_bulk_in_complete(uint8_t pipe)
 
     while ((USB_BEMPSTS & mask) == 0U)
     {
-        if ((g_usb_dev_configured == 0U) || (g_usb_dev_host_ready == 0U))
+        if ((g_usb_dev_configured == 0U) || (USB_Dev_IsHostReady() == 0U))
         {
             return DRV_ERR;
         }
@@ -1158,7 +1158,6 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wIndex == USB_CDC_COMM_INTERFACE)
         && (s->wLength == 7U))
     {
-        g_usb_dev_host_ready = 1U;
         g_dev_pending_request = USB_DEV_PENDING_SET_LINE_CODING;
         usb_debug_trace_push(USB_DBG_EVT_STATE,
                              USB_DBG_STATE_SET_LINE_CODING_PENDING,
@@ -1175,7 +1174,6 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wLength >= 7U))
     {
         uint8_t buf[7];
-        g_usb_dev_host_ready = 1U;
         buf[0] = (uint8_t)(g_line_coding.baudrate & 0xFFU);
         buf[1] = (uint8_t)((g_line_coding.baudrate >> 8) & 0xFFU);
         buf[2] = (uint8_t)((g_line_coding.baudrate >> 16) & 0xFFU);
@@ -1221,7 +1219,6 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wIndex == USB_CDC_COMM_INTERFACE)
         && (s->wLength == 0U))
     {
-        g_usb_dev_host_ready = 1U;
         g_usb_send_break_duration = s->wValue;
         usb_debug_trace_push(USB_DBG_EVT_STATE,
                              USB_DBG_STATE_SEND_BREAK,
@@ -1601,7 +1598,11 @@ uint8_t USB_Dev_IsConfigured(void)
 
 uint8_t USB_Dev_IsHostReady(void)
 {
+#if USB_DEV_CDC_REQUIRE_DTR != 0U
     return (uint8_t)(((g_usb_dev_configured != 0U) && (g_usb_dev_host_ready != 0U)) ? 1U : 0U);
+#else
+    return (uint8_t)((g_usb_dev_configured != 0U) ? 1U : 0U);
+#endif
 }
 
 drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len)
@@ -1611,7 +1612,7 @@ drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len)
 
     if ((g_mode != USB_MODE_DEVICE_CDC)
         || (g_usb_dev_configured == 0U)
-        || (g_usb_dev_host_ready == 0U)
+        || (USB_Dev_IsHostReady() == 0U)
         || (data == NULL))
     {
         return DRV_ERR;
