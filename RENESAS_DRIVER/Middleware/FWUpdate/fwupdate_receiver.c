@@ -1,16 +1,12 @@
 /*
- * fwupdate_receiver.c — UART-ISR Frame Receiver & Data Flash Writer for RA6M5.
+ * fwupdate_receiver.c — UART frame receiver & Data Flash writer for RA6M5.
  *
  * Architecture:
- *   ISR  → fills ring_buf[], advances ring_head
- *   main → drains ring_buf[], advances ring_tail, drives state machine
+ *   fwupdate_receiver_run() polls RX bytes from UART and pushes them into
+ *   ring_buf[], then drains ring_buf[] through the protocol state machine.
  *
- * The design keeps the ISR minimal (one byte write + head advance) to avoid
- * violating MISRA-C:2012 Rule 15.5 in interrupt context.
- *
- * UART channel: SCI2 (UART2), P301=RX, P302=TX, 115200 baud.
- * The RXI interrupt vector for SCI2 is assigned in the NVIC; its handler
- * name follows the RA6M5 vector table convention: sci2_rxi_isr.
+ * UART channel/baud are configurable via FWUPDATE_UART_CHANNEL and
+ * FWUPDATE_UART_BAUDRATE (default: old debug UART channel/wiring).
  */
 
 #include "fwupdate_receiver.h"
@@ -22,28 +18,14 @@
 #include <stddef.h>
 
 /* -----------------------------------------------------------------------
- * NVIC registers for SCI2_RXI interrupt (EK-RA6M5 default vector 13)
- * RA6M5 uses the Cortex-M33 NVIC at 0xE000E000.
- * ----------------------------------------------------------------------- */
-#define NVIC_BASE          0xE000E000UL
-#define NVIC_ISER0         (*(volatile uint32_t *)(uintptr_t)(NVIC_BASE + 0x100U))
-#define NVIC_IPR_BASE      (volatile uint8_t  *)(uintptr_t)(NVIC_BASE + 0x400U)
-
-/* SCI2_RXI interrupt number on EK-RA6M5 (from vector table, event 228 = IRQ44) */
-#define SCI2_RXI_IRQ_NUM   44U
-
-/* SCR bit for RIE (Receive Interrupt Enable) */
-#define SCR_RIE            (1U << 6)
-
-/* -----------------------------------------------------------------------
- * Internal UART2 send helpers (blocking) — used only for ACK/NACK frames.
+ * Internal UART send helpers (blocking) — used only for ACK/NACK frames.
  * This avoids pulling in the entire drv_uart API for the TX path.
  * ----------------------------------------------------------------------- */
-#define UART2_CH   2U
+#define FWUPDATE_UART_CH   ((uint8_t)FWUPDATE_UART_CHANNEL)
 
 static void uart2_send_byte(uint8_t b)
 {
-    UART_SendChar((UART_t)UART2_CH, (char)b);
+    UART_SendChar((UART_t)FWUPDATE_UART_CH, (char)b);
 }
 
 /* -----------------------------------------------------------------------
@@ -425,33 +407,6 @@ static flash_hp_status_t process_frame(void)
 }
 
 /* -----------------------------------------------------------------------
- * SCI2_RXI ISR — fires on each received byte from UART2.
- *
- * Reads RDR2 and stores in ring buffer.
- * ring_head is volatile; main loop reads ring_tail (non-volatile).
- * No critical section required: single byte write is atomic on CM33.
- * ----------------------------------------------------------------------- */
-void sci2_rxi_isr(void);   /* forward declaration — matches vector table symbol */
-void sci2_rxi_isr(void)
-{
-    uint8_t  byte_in;
-    uint16_t next_head;
-
-    /* Read received byte from SCI2 RDR — clears RDRF flag */
-    byte_in = SCI_RDR(UART2_CH);
-
-    next_head = (uint16_t)((s_ctx.ring_head + 1U) % FWUPDATE_RING_BUF_SIZE);
-
-    /* Store only if buffer is not full (avoid head overtaking tail) */
-    if (next_head != s_ctx.ring_tail)
-    {
-        s_ctx.ring_buf[s_ctx.ring_head] = byte_in;
-        s_ctx.ring_head                 = next_head;
-    }
-    /* If buffer full, byte is silently dropped; sender will get NACK on timeout */
-}
-
-/* -----------------------------------------------------------------------
  * fwupdate_receiver_init
  * ----------------------------------------------------------------------- */
 void fwupdate_receiver_init(void)
@@ -480,27 +435,7 @@ void fwupdate_receiver_init(void)
         s_ctx.frame_data[i] = 0U;
     }
 
-    /* Initialise UART2 at 115200 baud (TX+RX, polling TX) */
-    UART_Init(UART2, 115200UL);
-
-    /* Enable SCI2 Receive Interrupt (RIE bit in SCR) */
-    SCI_SCR(UART2_CH) |= (uint8_t)SCR_RIE;
-
-    /* Enable SCI2_RXI in NVIC (IRQ 44 → ISER1 bit 12) */
-    {
-        /* NVIC ISER1 is at 0xE000E104 (bits 32..63 of interrupt set-enable) */
-        volatile uint32_t * const p_iser1 =
-            (volatile uint32_t *)(uintptr_t)(NVIC_BASE + 0x104U);
-        /* IRQ44 → bit (44 - 32) = bit 12 in ISER1 */
-        *p_iser1 = (1UL << (SCI2_RXI_IRQ_NUM - 32UL));
-    }
-
-    /* Set interrupt priority 4 (0 = highest on CM33 with 4-bit priority) */
-    {
-        volatile uint8_t * const p_ipr =
-            (volatile uint8_t *)(uintptr_t)(NVIC_BASE + 0x400UL + SCI2_RXI_IRQ_NUM);
-        *p_ipr = (uint8_t)(4U << 4U);   /* Priority level 4, shifted to bits [7:4] */
-    }
+    UART_Init((UART_t)FWUPDATE_UART_CH, FWUPDATE_UART_BAUDRATE);
 }
 
 /* -----------------------------------------------------------------------
@@ -508,6 +443,19 @@ void fwupdate_receiver_init(void)
  * ----------------------------------------------------------------------- */
 fwupdate_state_t fwupdate_receiver_run(void)
 {
+    while ((SCI_SSR(FWUPDATE_UART_CH) & SSR_RDRF) != 0U)
+    {
+        uint16_t next_head;
+        uint8_t byte_in = SCI_RDR(FWUPDATE_UART_CH);
+
+        next_head = (uint16_t)((s_ctx.ring_head + 1U) % FWUPDATE_RING_BUF_SIZE);
+        if (next_head != s_ctx.ring_tail)
+        {
+            s_ctx.ring_buf[s_ctx.ring_head] = byte_in;
+            s_ctx.ring_head                 = next_head;
+        }
+    }
+
     /* Drain the ring buffer one byte at a time */
     while (s_ctx.ring_tail != s_ctx.ring_head)
     {
@@ -600,7 +548,18 @@ fwupdate_state_t fwupdate_receiver_run(void)
                 break;
 
             case FWUPDATE_STATE_PROCESS:
+                break;
+
             case FWUPDATE_STATE_DONE:
+                if (b == FWUPDATE_STX)
+                {
+                    s_ctx.frame_cmd      = 0U;
+                    s_ctx.frame_len      = 0U;
+                    s_ctx.frame_data_idx = 0U;
+                    s_ctx.state          = FWUPDATE_STATE_CMD;
+                }
+                break;
+
             default:
                 /* No action — absorb bytes */
                 break;

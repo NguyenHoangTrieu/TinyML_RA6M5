@@ -2,7 +2,7 @@
 #define FWUPDATE_RECEIVER_H
 
 /*
- * fwupdate_receiver.h — UART-ISR Frame Receiver & Data Flash Writer for RA6M5.
+ * fwupdate_receiver.h — UART frame receiver & Data Flash writer for RA6M5.
  *
  * Protocol summary (see imple_doc/FW_FWUpdate_Receiver.md):
  *
@@ -21,17 +21,27 @@
  *     0xAA CMD_ACK    — frame accepted (1-byte payload: echo of CMD)
  *     0xFF CMD_NACK   — error (1-byte payload: error code)
  *
- * UART channel used: UART2 (SCI2), P301=RX, P302=TX, PSEL=0x04.
- * Baud rate: 115200.
+ * UART channel used: same channel as legacy debug UART (configurable via
+ * FWUPDATE_UART_CHANNEL, default OS_DEBUG_UART_CHANNEL).
+ * Baud rate: FWUPDATE_UART_BAUDRATE (default OS_DEBUG_UART_BAUDRATE).
  *
- * Interrupt: SCI2_RXI (Receive Data Full) — vector number 13 on EK-RA6M5.
- * The ISR fills a ring buffer; the main-loop state machine drains it.
+ * RX path is polled from fwupdate_receiver_run() for easy reuse of the old
+ * debug wiring without extra NVIC/vector coupling.
  *
  * MISRA-C:2012 compliance: stdint.h types, bounds checks, no dynamic allocation.
  */
 
 #include <stdint.h>
 #include "drv_flash_hp.h"
+#include "rtos_config.h"
+
+#ifndef FWUPDATE_UART_CHANNEL
+#define FWUPDATE_UART_CHANNEL  OS_DEBUG_UART_CHANNEL
+#endif
+
+#ifndef FWUPDATE_UART_BAUDRATE
+#define FWUPDATE_UART_BAUDRATE OS_DEBUG_UART_BAUDRATE
+#endif
 
 /* -----------------------------------------------------------------------
  * Protocol constants
@@ -88,7 +98,7 @@ typedef enum {
 
 /* -----------------------------------------------------------------------
  * Transfer context — holds all state for an active firmware update.
- * Declared volatile because ISR writes to ring_buf and ring_head.
+ * ring_head is volatile because RX polling feeds bytes asynchronously.
  * ----------------------------------------------------------------------- */
 typedef struct {
     /* Ring buffer (ISR writes, main loop reads) */
@@ -120,8 +130,7 @@ typedef struct {
 /*
  * fwupdate_receiver_init — Initialise the firmware update receiver.
  *
- * Initialises UART2 at 115200 baud with RXI interrupt enabled.
- * Sets up SCI2_RXI interrupt in the NVIC (priority 4).
+ * Initialises the configured UART channel at FWUPDATE_UART_BAUDRATE.
  * Resets the context to idle state.
  *
  * Must be called once before fwupdate_receiver_run().
@@ -133,7 +142,7 @@ void fwupdate_receiver_init(void);
  *
  * Drains the ring buffer and feeds bytes through the frame state machine.
  * When a complete frame is received it processes it (erase/write/verify).
- * Sends ACK or NACK responses via UART2.
+ * Sends ACK or NACK responses via FWUPDATE_UART_CHANNEL.
  *
  * Call this repeatedly from main() or a scheduler task.
  *
