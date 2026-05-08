@@ -1,11 +1,45 @@
 # RCA_USB_CDC_NoEnumeration
 
-Tags: #in-progress #firmware #usb #cdc #rca
+Tags: #resolved #firmware #usb #cdc #rca
 
-Current root-cause note for USB CDC Device mode enumeration failure.
-Host symptom: **Windows Code 43 — "Device Descriptor Request Failed"**.
+Final root-cause note for the USB CDC Device mode enumeration failure.
+Historical host symptom: **Windows Code 43 — "Device Descriptor Request Failed"**.
 
 Related docs: [[FW_USB_Driver]], [[HW_RA6M5_USBFS]]
+
+---
+
+## Final Resolution
+
+The Code 43 failure was not a single defect. Enumeration only became reliable after a set of tightly-related fixes in clocking, EP0 control-IN handling, descriptor semantics, and startup timing.
+
+Verified fixes now in the codebase:
+
+- RA6M5 USBFS now gets a dedicated 48 MHz USB clock from PLL2/UCLK.
+- EP0 control-IN now correctly handles:
+	- short packets with `CFIFOCTR.BVAL`
+	- multi-packet descriptor transfers via pipe0 `BEMP`
+	- `CFIFOSEL` latch settle before CFIFO access
+	- initial `CFIFOCTR.BCLR` before a fresh DCP IN transfer
+	- `PID=NAK` before refilling pipe0 FIFO
+- Device descriptors were simplified from composite/IAD-flavored CDC to classic single-function CDC ACM:
+	- device class changed to CDC (`0x02`)
+	- IAD removed
+	- configuration total length reduced from `0x4b` to `0x43`
+- `USB_PollEvents()` now drains pending USB sources in priority order within one invocation instead of servicing one source and returning immediately.
+- Heavy non-USB startup work was moved out of the default-address enumeration window so TFLM init no longer collides with the last configuration-descriptor transfer.
+
+The follow-up open-port latency was also reduced after enumeration was fixed:
+
+- post-enumeration USB trace chatter is no longer dumped verbosely over blocking UART during CDC ACM port-open negotiation
+- USB CDC test traffic is now gated on host-side CDC activity instead of sending unsolicited BULK IN test frames immediately after `SET_CONFIGURATION`
+- USB polling test task priority was raised above the background test tasks
+
+Result:
+
+- Windows enumeration succeeds
+- the CDC device appears and can be opened by the serial tool
+- the remaining work is now performance/usability tuning, not Code 43 recovery
 
 ---
 
@@ -63,7 +97,7 @@ That correction matters because an earlier RCA incorrectly treated `0x5090` as `
 
 ---
 
-## Current Code State
+## Historical Intermediate State
 
 Two fixes described in the earlier RCA are already present in current source:
 
@@ -80,7 +114,7 @@ So the old RCA is stale as a primary explanation for the current reset loop.
 
 ---
 
-## Current Working Hypothesis
+## Historical Working Hypothesis
 
 The controlling code path is no longer pull-up or USB root clock. The remaining fault is now centered on
 **device-side EP0 control-IN startup/continuation for descriptor reads**.
@@ -114,7 +148,7 @@ The tell would be:
 
 ---
 
-## Patch Under Test
+## Historical Patch Under Test
 
 The code under test now contains three rounds of fixes in `drv_usb.c` / clock init:
 
@@ -129,7 +163,7 @@ These changes are intended to eliminate the remaining gap between:
 
 ---
 
-## Expected Re-Test Signal
+## Historical Re-Test Signal
 
 After reflashing the latest patch, the useful success signal is no longer just “we saw `GET_DESCRIPTOR`”.
 The next good trace should instead progress past the current stall point:
@@ -153,8 +187,11 @@ If the host still repeats `GET_DESCRIPTOR(CONFIGURATION)` and resets without any
 | USB 48 MHz UCLK fix applied | ✅ |
 | EP0 short-packet `BVAL` + pipe0 continuation patch applied | ✅ |
 | EP0 `CFIFOSEL` latch wait + initial `BCLR` patch applied | ✅ |
-| Firmware rebuild after latest patch | ✅ |
-| Hardware re-test | 🔲 Pending |
+| CDC descriptor simplification applied | ✅ |
+| USB poll-source drain fix applied | ✅ |
+| Startup timing collision removed | ✅ |
+| Hardware re-test for Code 43 | ✅ Passed |
+| CDC open-latency optimization applied | ✅ |
 
 ---
 

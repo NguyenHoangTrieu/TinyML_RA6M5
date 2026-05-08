@@ -23,7 +23,7 @@ Hardware dependency: [[HW_RA6M5_USBFS]]
   - `P407` as `USBFS_VBUS` peripheral input
 - Provide CDC descriptors:
   - Device Descriptor
-  - Configuration Descriptor with IAD
+  - Classic full-speed CDC ACM Configuration Descriptor (no IAD)
   - String descriptors (`LANGID`, manufacturer, product, serial)
   - Communication Interface + Data Interface
   - Notification interrupt IN + data bulk OUT/IN endpoints
@@ -33,6 +33,7 @@ Hardware dependency: [[HW_RA6M5_USBFS]]
 - Bulk IN log stream using:
   - `USB_Dev_Write(...)`
   - `USB_Dev_Printf(...)`
+  - `USB_Dev_IsHostReady(...)` to avoid sending test/log data before the host has actually started CDC class negotiation, and to stop quickly again after an explicit close or a stalled BULK IN transfer
 - Event path supports polling and IRQ hook:
   - `USB_PollEvents()`
   - `USBI0_IRQHandler()`, `USBI1_IRQHandler()`
@@ -69,6 +70,7 @@ void USBI1_IRQHandler(void);
 
 drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len);
 drv_status_t USB_Dev_Printf(const char *fmt, ...);
+uint8_t USB_Dev_IsHostReady(void);
 
 drv_status_t USB_Host_Enumerate(void);
 drv_status_t USB_Host_Send_AT_Command(char *cmd);
@@ -95,6 +97,14 @@ Control-stage routing in `USB_PollEvents()`:
 - Only `CTSQ = RDDS/WRDS/WRND` is treated as a new setup request
 - `VALID` is cleared before reading setup regs so stale EP0 state is not re-dispatched
 - `CTSQ = RDSS/WRSS` only releases EP0 status stage with `BUF + CCPL`
+- pending USB sources are drained in priority order within one `USB_PollEvents()` call so EP0 state transitions are not deferred to a later scheduler tick
+
+Control-IN transmit details for EP0 / DCP:
+- short packets assert `CFIFOCTR.BVAL`
+- multi-packet replies continue on pipe0 `BEMP`
+- `CFIFOSEL` latch is waited after selecting DCP IN
+- `CFIFOCTR.BCLR` is used before a fresh control-IN transfer
+- pipe0 is driven to `PID=NAK` before FIFO refill
 
 Dispatch rules:
 - `bmRequestType` standard (`0x00/0x80`): standard handler
@@ -107,6 +117,12 @@ Device-side pipe layout:
 - PIPE1 = CDC data BULK IN (EP1 IN)
 - PIPE2 = CDC data BULK OUT (EP2 OUT)
 - PIPE6 = CDC notification INT IN (EP3 IN)
+
+Host-readiness note:
+- `SET_CONFIGURATION` marks the device configured
+- the driver separately latches host-side CDC activity on valid class requests (`GET/SET_LINE_CODING`, `SET_CONTROL_LINE_STATE`, `SEND_BREAK`)
+- an explicit `SET_CONTROL_LINE_STATE` close (`wValue = 0`) or a stalled BULK IN write clears the latched host-ready state immediately, so the logger does not keep blocking for many seconds after the terminal closes
+- `USB_Dev_IsHostReady()` returns true only after both conditions are met, which is useful for gating test/debug traffic
 
 ### Host Enumeration Implementation
 
@@ -158,7 +174,9 @@ Provided test hooks:
 - `test_usb_cdc_logger_init()`
   - Creates one RTOS task
   - Polls USB events every 1 ms to service control/data state changes promptly
-  - Sends periodic CDC log frames when the host has configured the device
+  - Runs at higher priority than the background synthetic-AI test task to reduce CDC open latency in polling mode
+  - Sends periodic CDC log frames only after `USB_Dev_IsHostReady()` becomes true
+  - suppresses verbose post-enumeration USB trace chatter by default so CDC ACM open negotiation is not slowed by blocking UART debug output
 - `test_usb_host_descriptor_init()`
   - Creates one one-shot enumeration task in host mode
   - Enumerates attached CDC-ACM device / SIM module
@@ -185,7 +203,7 @@ Current ownership of the USB test selector:
 
 ## Known Issues / Bug History
 
-### BUG-USB-01: Code 43 — Device Descriptor Request Failed (FIXED, pending re-test)
+### BUG-USB-01: Code 43 — Device Descriptor Request Failed (FIXED, verified)
 
 **Symptom:** Windows reports "Unknown USB Device (Device Descriptor Request Failed)".
 Device never logs CTRT/SETUP events. DVST loops between POWR/BUS_RESET indefinitely.
@@ -201,4 +219,24 @@ state when the host sent `GET_DESCRIPTOR`. See [[RCA_USB_CDC_NoEnumeration]].
 - `BRDYENB[0]` now enabled at device-mode init to make SET_LINE_CODING data stage
   interrupt-driven rather than polled.
 
-**Status:** Code change complete. Hardware re-test required.
+**Status:** Fixed and hardware-verified.
+
+### BUG-USB-02: Slow CDC ACM Port Open / Connect Latency (FIXED)
+
+**Symptom:**
+- Windows enumeration succeeds, but opening the CDC COM port from the serial tool can take multiple seconds.
+- Logs show a burst of repeated `GET_LINE_CODING`, `SET_LINE_CODING`, and `SET_CONTROL_LINE_STATE` requests during port open.
+
+**Root Cause:**
+- The USB test task was polling in task context and had lower priority than background tasks.
+- At the same time, verbose USB trace output was being drained over blocking UART during the CDC ACM open handshake, stretching the time between successive `USB_PollEvents()` calls.
+- The USB CDC test logger also attempted unsolicited BULK IN writes before the host had actually started CDC class negotiation.
+
+**Fix applied:**
+- raised the USB polling test task priority above the background test tasks
+- gated CDC test traffic on `USB_Dev_IsHostReady()` instead of only `USB_Dev_IsConfigured()`
+- limited device-mode CDC BULK IN completion waits to a short fail-fast window and clear the pending pipe state on timeout so disconnect/close recovery happens in under a second instead of tens of seconds
+- drop the latched host-ready state immediately on explicit CDC close (`SET_CONTROL_LINE_STATE = 0`) and on stalled writes so the logger stops retrying against a closed port
+- suppressed verbose post-enumeration USB trace chatter by default, keeping only error/stall visibility during normal open/close flows
+
+**Status:** Applied. Re-test expected to show significantly faster COM open behavior.

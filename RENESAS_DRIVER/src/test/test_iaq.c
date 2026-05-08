@@ -5,6 +5,7 @@
 
 #include "test_iaq.h"
 #include "debug_print.h"
+#include "drv_usb.h"
 #include "iaq_predictor.h"
 #include "kernel.h"
 #include "sensor_simulator.h"
@@ -12,6 +13,8 @@
 #include <stdint.h>
 
 /* --- Configuration --- */
+#define IAQ_STARTUP_DELAY_MS 3000U
+#define IAQ_STARTUP_POLL_MS    10U
 #define CYCLE_DELAY_MS 5000U /* 5-second task cycle */
 
 static OS_TCB_t s_iaq_test_tcb;
@@ -20,10 +23,15 @@ static OS_TCB_t s_iaq_test_tcb;
  * Task body — runs continuously every 5 seconds
  * ========================================================================= */
 static void task_iaq_test(void *arg) {
+  uint32_t startup_wait_ms = 0U;
+
   (void)arg;
 
-  /* Wait for system to stabilize before booting AI task */
-  OS_Task_Delay(800U);
+  /* Keep the heavy TFLM init out of the default-address USB enumeration window. */
+  while ((startup_wait_ms < IAQ_STARTUP_DELAY_MS) && (USB_Dev_IsConfigured() == 0U)) {
+    OS_Task_Delay(IAQ_STARTUP_POLL_MS);
+    startup_wait_ms += IAQ_STARTUP_POLL_MS;
+  }
 
   debug_print("\r\n[IAQ Task] Starting TFLite initialization...\r\n");
 

@@ -174,6 +174,11 @@
 #define USB_CDC_REQ_SET_CONTROL_LINE_STATE 0x22U
 #define USB_CDC_REQ_SEND_BREAK       0x23U
 
+/* Keep device-mode CDC TX failure bounded well below one second so the
+ * polling task can observe close/detach events promptly. */
+#define USB_CDC_DEV_TX_TIMEOUT_TICKS 1000000UL
+#define USB_CDC_DEV_TX_POLL_STRIDE   1024UL
+
 /* Descriptor types */
 #define USB_DESC_DEVICE        0x01U
 #define USB_DESC_CONFIGURATION 0x02U
@@ -203,6 +208,7 @@ typedef enum
 static usb_mode_t g_mode = USB_MODE_DEVICE_CDC;
 static uint8_t g_usb_dev_address = 0U;
 static uint8_t g_usb_dev_configured = 0U;
+static uint8_t g_usb_dev_host_ready = 0U;
 static usb_dev_pending_request_t g_dev_pending_request = USB_DEV_PENDING_NONE;
 static uint8_t g_usb_interface_alt[2] = {0U, 0U};
 static uint16_t g_usb_control_line_state = 0U;
@@ -225,6 +231,8 @@ static usb_host_cdc_device_t g_host_dev;
 static usb_host_descriptor_snapshot_t g_host_desc;
 
 static void usb_clear_bemp(uint8_t pipe);
+static void usb_device_abort_bulk_in(uint8_t pipe);
+static drv_status_t usb_device_wait_bulk_in_complete(uint8_t pipe);
 
 static void usb_debug_trace_reset(void)
 {
@@ -419,6 +427,7 @@ static void usb_device_reset_runtime_state(void)
 {
     g_usb_dev_address = 0U;
     g_usb_dev_configured = 0U;
+    g_usb_dev_host_ready = 0U;
     g_dev_pending_request = USB_DEV_PENDING_NONE;
     g_usb_interface_alt[USB_CDC_COMM_INTERFACE] = 0U;
     g_usb_interface_alt[USB_CDC_DATA_INTERFACE] = 0U;
@@ -463,6 +472,8 @@ static void usb_device_update_pullup(uint16_t intsts0)
         if (((intsts0 & USB_INT_VBINT) != 0U) && (vbus_present == 0U))
         {
             g_usb_device_attach_debounce = 0U;
+            usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
+            usb_device_reset_runtime_state();
             USB_SYSCFG = (uint16_t)(USB_SYSCFG & (uint16_t)~USB_SYSCFG_DPRPU);
             g_usb_device_pullup_enabled = 0U;
             usb_debug_trace_push(USB_DBG_EVT_STATE,
@@ -619,6 +630,11 @@ static void usb_clear_bemp(uint8_t pipe)
     USB_BEMPSTS = (uint16_t)~(1U << pipe);
 }
 
+static void usb_clear_nrdy(uint8_t pipe)
+{
+    USB_NRDYSTS = (uint16_t)~(1U << pipe);
+}
+
 static void usb_clear_intsts0(uint16_t mask)
 {
     USB_INTSTS0 = (uint16_t)~mask;
@@ -716,6 +732,65 @@ static void usb_pipe_set_pid(uint8_t pipe, uint16_t pid)
         volatile uint16_t *ctr = &USB_PIPECTR(pipe);
         *ctr = (uint16_t)((*ctr & (uint16_t)~USB_CTR_PID_MASK) | (pid & USB_CTR_PID_MASK));
     }
+}
+
+static void usb_pipe_clear_buffer(uint8_t pipe)
+{
+    volatile uint16_t *ctr;
+
+    if (pipe == 0U)
+    {
+        ctr = &USB_DCPCTR;
+    }
+    else
+    {
+        ctr = &USB_PIPECTR(pipe);
+    }
+
+    *ctr = (uint16_t)(*ctr | USB_CTR_ACLRM);
+    *ctr = (uint16_t)(*ctr & (uint16_t)~USB_CTR_ACLRM);
+}
+
+static void usb_device_abort_bulk_in(uint8_t pipe)
+{
+    usb_pipe_set_pid(pipe, USB_CTR_PID_NAK);
+    usb_pipe_clear_buffer(pipe);
+    usb_clear_bemp(pipe);
+    usb_clear_nrdy(pipe);
+}
+
+static drv_status_t usb_device_wait_bulk_in_complete(uint8_t pipe)
+{
+    uint16_t mask = USB_PIPE_MASK(pipe);
+    uint32_t timeout = USB_CDC_DEV_TX_TIMEOUT_TICKS;
+
+    while ((USB_BEMPSTS & mask) == 0U)
+    {
+        if ((g_usb_dev_configured == 0U) || (g_usb_dev_host_ready == 0U))
+        {
+            return DRV_ERR;
+        }
+
+        if ((USB_NRDYSTS & mask) != 0U)
+        {
+            usb_clear_nrdy(pipe);
+            return DRV_TIMEOUT;
+        }
+
+        if ((timeout & (USB_CDC_DEV_TX_POLL_STRIDE - 1UL)) == 0UL)
+        {
+            USB_PollEvents();
+        }
+
+        if (timeout == 0U)
+        {
+            return DRV_TIMEOUT;
+        }
+
+        timeout--;
+    }
+
+    return DRV_OK;
 }
 
 static void usb_device_control_in_reset(void)
@@ -1025,6 +1100,10 @@ static void usb_device_handle_standard_request(const usb_setup_packet_t *s)
                 && (((s->wValue & 0x00FFU) == 0U) || ((s->wValue & 0x00FFU) == USB_CDC_CONFIG_VALUE)))
             {
                 g_usb_dev_configured = (uint8_t)(s->wValue & 0x00FFU);
+                if (g_usb_dev_configured == 0U)
+                {
+                    g_usb_dev_host_ready = 0U;
+                }
                 g_usb_interface_alt[USB_CDC_COMM_INTERFACE] = 0U;
                 g_usb_interface_alt[USB_CDC_DATA_INTERFACE] = 0U;
                 usb_debug_trace_push(USB_DBG_EVT_STATE,
@@ -1079,6 +1158,7 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wIndex == USB_CDC_COMM_INTERFACE)
         && (s->wLength == 7U))
     {
+        g_usb_dev_host_ready = 1U;
         g_dev_pending_request = USB_DEV_PENDING_SET_LINE_CODING;
         usb_debug_trace_push(USB_DBG_EVT_STATE,
                              USB_DBG_STATE_SET_LINE_CODING_PENDING,
@@ -1095,6 +1175,7 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wLength >= 7U))
     {
         uint8_t buf[7];
+        g_usb_dev_host_ready = 1U;
         buf[0] = (uint8_t)(g_line_coding.baudrate & 0xFFU);
         buf[1] = (uint8_t)((g_line_coding.baudrate >> 8) & 0xFFU);
         buf[2] = (uint8_t)((g_line_coding.baudrate >> 16) & 0xFFU);
@@ -1116,6 +1197,15 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wIndex == USB_CDC_COMM_INTERFACE)
         && (s->wLength == 0U))
     {
+        if ((g_usb_control_line_state != 0U) && (s->wValue == 0U))
+        {
+            g_usb_dev_host_ready = 0U;
+            usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
+        }
+        else if (s->wValue != 0U)
+        {
+            g_usb_dev_host_ready = 1U;
+        }
         g_usb_control_line_state = s->wValue;
         usb_debug_trace_push(USB_DBG_EVT_STATE,
                              USB_DBG_STATE_SET_CONTROL_LINE_STATE,
@@ -1131,6 +1221,7 @@ static void usb_device_handle_class_request(const usb_setup_packet_t *s)
         && (s->wIndex == USB_CDC_COMM_INTERFACE)
         && (s->wLength == 0U))
     {
+        g_usb_dev_host_ready = 1U;
         g_usb_send_break_duration = s->wValue;
         usb_debug_trace_push(USB_DBG_EVT_STATE,
                              USB_DBG_STATE_SEND_BREAK,
@@ -1508,11 +1599,20 @@ uint8_t USB_Dev_IsConfigured(void)
     return g_usb_dev_configured;
 }
 
+uint8_t USB_Dev_IsHostReady(void)
+{
+    return (uint8_t)(((g_usb_dev_configured != 0U) && (g_usb_dev_host_ready != 0U)) ? 1U : 0U);
+}
+
 drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len)
 {
     uint32_t sent = 0U;
+    drv_status_t write_st;
 
-    if ((g_mode != USB_MODE_DEVICE_CDC) || (g_usb_dev_configured == 0U) || (data == NULL))
+    if ((g_mode != USB_MODE_DEVICE_CDC)
+        || (g_usb_dev_configured == 0U)
+        || (g_usb_dev_host_ready == 0U)
+        || (data == NULL))
     {
         return DRV_ERR;
     }
@@ -1529,12 +1629,12 @@ drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len)
         USB_BEMPSTS = (uint16_t)~(1U << USB_PIPE_CDC_DEV_BULK_IN);
         usb_pipe_set_pid(USB_PIPE_CDC_DEV_BULK_IN, USB_CTR_PID_BUF);
 
-        if (usb_wait_reg16(&USB_BEMPSTS,
-                           (uint16_t)(1U << USB_PIPE_CDC_DEV_BULK_IN),
-                           (uint16_t)(1U << USB_PIPE_CDC_DEV_BULK_IN),
-                           DRV_TIMEOUT_TICKS) != DRV_OK)
+        write_st = usb_device_wait_bulk_in_complete(USB_PIPE_CDC_DEV_BULK_IN);
+        if (write_st != DRV_OK)
         {
-            return DRV_TIMEOUT;
+            g_usb_dev_host_ready = 0U;
+            usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
+            return write_st;
         }
 
         sent += chunk;

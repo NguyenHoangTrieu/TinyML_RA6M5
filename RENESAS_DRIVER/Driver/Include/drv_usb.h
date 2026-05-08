@@ -123,6 +123,7 @@ drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len);
 drv_status_t USB_Dev_Printf(const char *fmt, ...);
 void USB_Dev_SetConfigured(uint8_t configured);
 uint8_t USB_Dev_IsConfigured(void);
+uint8_t USB_Dev_IsHostReady(void);
 
 /* -----------------------------------------------------------------------
  * Host CDC-ACM API (SIM module)

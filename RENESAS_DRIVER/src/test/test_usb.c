@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#define USB_TEST_TASK_PRIO        6U
+#define USB_TEST_TASK_PRIO        1U
 #define USB_CDC_POLL_PERIOD_MS    1U
 #define USB_CDC_LOG_PERIOD_MS  1000U
 #define USB_HOST_BOOT_DELAY_MS  500U
@@ -100,13 +100,33 @@ static const char *usb_trace_stall_name(uint16_t reason)
     }
 }
 
-static void usb_cdc_drain_debug_trace(void)
+static uint8_t usb_trace_should_print(uint8_t configured, const usb_debug_trace_t *trace)
+{
+    if (configured == 0U)
+    {
+        return 1U;
+    }
+
+    if ((trace->event == USB_DBG_EVT_STALL) || (trace->event == USB_DBG_EVT_ERROR))
+    {
+        return 1U;
+    }
+
+    return 0U;
+}
+
+static void usb_cdc_drain_debug_trace(uint8_t configured)
 {
     usb_debug_trace_t trace;
     static uint16_t s_last_dropped = 0U;
 
     while (USB_Debug_PopTrace(&trace) != 0U)
     {
+        if (usb_trace_should_print(configured, &trace) == 0U)
+        {
+            continue;
+        }
+
         switch (trace.event)
         {
             case USB_DBG_EVT_INIT:
@@ -224,6 +244,7 @@ static void task_usb_cdc_logger(void *arg)
     uint32_t elapsed_ms = 0U;
     uint32_t seq = 0U;
     uint8_t last_configured = 0U;
+    uint8_t last_host_ready = 0U;
     drv_status_t init_st;
     (void)arg;
 
@@ -242,10 +263,12 @@ static void task_usb_cdc_logger(void *arg)
     for (;;)
     {
         uint8_t configured;
+        uint8_t host_ready;
 
         USB_PollEvents();
-        usb_cdc_drain_debug_trace();
         configured = USB_Dev_IsConfigured();
+        host_ready = USB_Dev_IsHostReady();
+        usb_cdc_drain_debug_trace(configured);
 
         if (configured != last_configured)
         {
@@ -253,7 +276,13 @@ static void task_usb_cdc_logger(void *arg)
             last_configured = configured;
         }
 
-        if ((configured != 0U) && (elapsed_ms >= USB_CDC_LOG_PERIOD_MS))
+        if (host_ready != last_host_ready)
+        {
+            debug_print("[USB CDC TEST] host_ready=%u\r\n", (unsigned)host_ready);
+            last_host_ready = host_ready;
+        }
+
+        if ((host_ready != 0U) && (elapsed_ms >= USB_CDC_LOG_PERIOD_MS))
         {
             drv_status_t write_st = USB_Dev_Printf(
                 "[USB CDC TEST] seq=%u tick=%u host-ready\r\n",
