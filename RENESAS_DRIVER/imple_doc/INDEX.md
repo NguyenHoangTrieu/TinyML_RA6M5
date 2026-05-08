@@ -38,6 +38,7 @@ Tags: #in-progress #system
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
 | [[FW_USB_Driver]] | `drv_usb.h/.c` — USBFS dual-mode (Device CDC log + Host CDC-ACM) |
 | [[FW_FWUpdate_Receiver]] | `fwupdate_receiver.h/.c` — UART framed model transfer, CRC, ACK/NACK, Data Flash writes |
+| server_comm (code) | `src/server_comm.h/.c` — UART TX/RX split tasks: telemetry TX + FWUpdate RX |
 | [[FW_TestFramework]] | `test_runner.h/.c` — shared test framework, currently used by IAQ and RTOS suites |
 | [[FW_RTOS_Test]] | Khịch bản test preemptive scheduling |
 | [[RCA_RTOS_Preemptive_Verification]] | Phân tích xác nhận PASS là hợp lệ |

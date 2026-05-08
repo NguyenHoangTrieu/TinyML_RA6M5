@@ -285,15 +285,17 @@ static void task_usb_cdc_logger(void *arg)
 
         if ((host_ready != 0U) && (elapsed_ms >= USB_CDC_LOG_PERIOD_MS))
         {
-            /* Use the fire-and-forget log write to avoid blocking on BEMP and
-             * generating spurious UART "write failed" noise on transient
-             * bus-resets.  seq always increments so the USB terminal shows
-             * live progression; any dropped packet is visible as a seq gap. */
-            drv_status_t st = USB_Dev_Printf_Log(
+            /* Use blocking USB_Dev_Printf (waits for BEMP, checks host-ready)
+             * so that each packet is fully transmitted before seq advances.
+             * USB_Dev_Printf_Log was fire-and-forget and could silently drop
+             * packets when the host did not issue IN tokens in time. */
+            drv_status_t st = USB_Dev_Printf(
                 "[USB CDC TEST] seq=%u tick=%u host-ready\r\n",
                 (unsigned)seq,
                 (unsigned)OS_GetTick());
-            debug_print("[USB CDC TEST] Printf_Log returned %u\r\n", (unsigned)st);
+            debug_print("[USB CDC TEST] TX %s seq=%u\r\n",
+                        (st == DRV_OK) ? "OK " : "ERR",
+                        (unsigned)seq);
 
             seq++;
             elapsed_ms = 0U;

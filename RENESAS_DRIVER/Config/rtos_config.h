@@ -97,6 +97,13 @@
  */
 #define OS_DEBUG_BACKEND_UART       1
 #define OS_DEBUG_BACKEND_SEMIHOST   0
+#define OS_DEBUG_BACKEND_USB_CDC    0
+
+/* Set to 1 to run the stand-alone USB CDC test task.
+ * USB_Init() and task_usb_test are still created even when
+ * OS_DEBUG_BACKEND_USB_CDC=0, so USB can be debugged while
+ * log output flows over UART. */
+#define OS_USB_CDC_TEST_ENABLE      1
 
 /**
  * SCI channel used for UART output (0–9).

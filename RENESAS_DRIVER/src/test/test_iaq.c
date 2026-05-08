@@ -8,6 +8,7 @@
 #include "drv_usb.h"
 #include "iaq_predictor.h"
 #include "kernel.h"
+#include "server_comm.h"
 #include "sensor_simulator.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -77,6 +78,9 @@ static void task_iaq_test(void *arg) {
     debug_print(
         "Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
         t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
+
+    server_comm_publish_raw(pkt.tvoc, pkt.eco2);
+    server_comm_publish_predict(forecast);
 
     /* Block task for exactly 5 seconds */
     OS_Task_Delay(CYCLE_DELAY_MS);

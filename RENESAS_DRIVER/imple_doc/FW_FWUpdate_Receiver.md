@@ -17,14 +17,23 @@ Flash backend:
 
 | Item | Value |
 |------|-------|
-| RA6M5 channel | SCI2 / UART2 |
-| RA6M5 pins | RX=P301, TX=P302 |
+| RA6M5 channel | Same as legacy debug UART (`OS_DEBUG_UART_CHANNEL`, default SCI7) |
+| RA6M5 pins | Same wiring as old debug UART channel |
 | ESP32-C6 channel | UART1 |
 | ESP32-C6 pins | TX=GPIO17, RX=GPIO16 |
 | Baud rate | 115200 |
 | Framing | 8-N-1 |
 
-The receiver uses an RX interrupt to push bytes into a ring buffer. Frame parsing and flash operations run in normal context.
+The receiver uses polling in `fwupdate_receiver_run()` to collect RX bytes, then parses frames and performs flash operations in normal context.
+
+---
+
+## 2026-05-08 Integration Update
+
+- FWUpdate RX now reuses the old debug UART channel for easier wiring with ESP32-C6 sender.
+- RX path changed from fixed SCI2 RXI interrupt to polling mode, reducing NVIC/vector coupling when channel assignment changes.
+- FWUpdate is now intended to run inside a dedicated RX task (`server_comm` RX task), while TX telemetry runs in a separate TX task.
+- Receiver now accepts a new `CMD_START` after `DONE` state without requiring MCU reset.
 
 ---
 

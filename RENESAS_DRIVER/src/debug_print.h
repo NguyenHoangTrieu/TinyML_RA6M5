@@ -27,8 +27,8 @@
 
 /**
  * OS_DEBUG_BACKEND_USB_CDC — route debug_print() to the USB FS CDC BULK IN
- * pipe instead of the UART.  USB must already be initialised by
- * test_usb_cdc_logger_init() before the first debug_print() call.
+ * pipe instead of the UART.  USB must already be initialised by runtime
+ * startup flow (USB_Init + usb_svc task) before the first debug_print() call.
  *
  *   0 = disabled (default — UART SCI backend active)
  *   1 = USB CDC fire-and-forget log path

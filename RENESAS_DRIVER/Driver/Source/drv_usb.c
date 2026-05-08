@@ -217,6 +217,9 @@ static const uint8_t *g_usb_ctrl_in_data = NULL;
 static uint16_t g_usb_ctrl_in_remaining = 0U;
 static uint8_t g_usb_device_pullup_enabled = 0U;
 static uint8_t g_usb_device_attach_debounce = 0U;
+static volatile uint8_t g_usb_poll_busy = 0U;
+static uint8_t          g_usb_vbus_absent_count = 0U;
+static uint16_t         g_usb_enum_suspend_count = 0U;
 static usb_debug_trace_t g_usb_debug_trace[USB_DEBUG_TRACE_DEPTH];
 static volatile uint8_t g_usb_debug_trace_head = 0U;
 static volatile uint8_t g_usb_debug_trace_tail = 0U;
@@ -463,25 +466,75 @@ static uint8_t usb_device_vbus_present_stable(void)
     return (uint8_t)(((sample0 & USB_INT_VBSTS) != 0U) ? 1U : 0U);
 }
 
+static void usb_device_force_detach(uint16_t intsts0)
+{
+    g_usb_device_attach_debounce = 0U;
+    g_usb_vbus_absent_count = 0U;
+    g_usb_enum_suspend_count = 0U;
+    usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
+    usb_device_reset_runtime_state();
+    USB_SYSCFG = (uint16_t)(USB_SYSCFG & (uint16_t)~USB_SYSCFG_DPRPU);
+    g_usb_device_pullup_enabled = 0U;
+    usb_debug_trace_push(USB_DBG_EVT_STATE,
+                         USB_DBG_STATE_PULLUP_DISABLED,
+                         USB_SYSCFG,
+                         intsts0,
+                         USB_SYSSTS0);
+}
+
 static void usb_device_update_pullup(uint16_t intsts0)
 {
     uint8_t vbus_present = usb_device_vbus_present_stable();
 
     if (g_usb_device_pullup_enabled != 0U)
     {
-        if (((intsts0 & USB_INT_VBINT) != 0U) && (vbus_present == 0U))
+        if (vbus_present != 0U)
         {
-            g_usb_device_attach_debounce = 0U;
-            usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
-            usb_device_reset_runtime_state();
-            USB_SYSCFG = (uint16_t)(USB_SYSCFG & (uint16_t)~USB_SYSCFG_DPRPU);
-            g_usb_device_pullup_enabled = 0U;
-            usb_debug_trace_push(USB_DBG_EVT_STATE,
-                                 USB_DBG_STATE_PULLUP_DISABLED,
-                                 USB_SYSCFG,
-                                 intsts0,
-                                 USB_SYSSTS0);
+            /* VBUS is stable — reset absent counter. */
+            g_usb_vbus_absent_count = 0U;
+
+            /* Stuck-enumeration recovery: if the device has been in SUSPEND
+             * state (DVSQ bit 6 set) for more than ~200 ms without being
+             * configured, the host has likely given up.  Force a clean
+             * disconnect/reconnect so the host re-enumerates from scratch. */
+            if (g_usb_dev_configured == 0U)
+            {
+                if ((intsts0 & 0x0040U) != 0U) /* DVSQ bit 6 = SUSPEND */
+                {
+                    if (g_usb_enum_suspend_count < 200U)
+                    {
+                        g_usb_enum_suspend_count++;
+                    }
+                    else
+                    {
+                        g_usb_enum_suspend_count = 0U;
+                        usb_device_force_detach(intsts0);
+                        return;
+                    }
+                }
+                else
+                {
+                    g_usb_enum_suspend_count = 0U;
+                }
+            }
+            else
+            {
+                g_usb_enum_suspend_count = 0U;
+            }
+
+            return;
         }
+
+        /* VBUS absent: require 50 consecutive absent polls (~50 ms) before
+         * forcing detach.  This tolerates brief glitches during enumeration
+         * while still recovering from a genuine unplug event. */
+        if (g_usb_vbus_absent_count < 50U)
+        {
+            g_usb_vbus_absent_count++;
+            return;
+        }
+
+        usb_device_force_detach(intsts0);
         return;
     }
 
@@ -496,6 +549,19 @@ static void usb_device_update_pullup(uint16_t intsts0)
         g_usb_device_attach_debounce++;
         return;
     }
+
+    /* Re-configure bulk IN/OUT pipes before asserting pull-up so
+     * the endpoint descriptors are consistent with hardware state
+     * on the first SET_CONFIGURATION after re-enumeration. */
+    USB_PIPESEL = USB_PIPE_CDC_DEV_BULK_IN;
+    USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_PIPECFG_DIR | USB_CDC_BULK_IN_EP_NUM);
+    USB_PIPEMAXP = 64U;
+
+    USB_PIPESEL = USB_PIPE_CDC_DEV_BULK_OUT;
+    USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_CDC_BULK_OUT_EP_NUM);
+    USB_PIPEMAXP = 64U;
+
+    USB_PIPESEL = 0U;
 
     USB_SYSCFG = (uint16_t)(USB_SYSCFG | USB_SYSCFG_DPRPU);
     g_usb_device_pullup_enabled = 1U;
@@ -1512,12 +1578,12 @@ drv_status_t USB_Init(usb_mode_t mode)
 
         /* PIPE1 = BULK IN endpoint 1 for logging stream */
         USB_PIPESEL = USB_PIPE_CDC_DEV_BULK_IN;
-        USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_PIPECFG_DIR | USB_CDC_BULK_IN_EP_NUM | USB_PIPECFG_DBLB);
+        USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_PIPECFG_DIR | USB_CDC_BULK_IN_EP_NUM);
         USB_PIPEMAXP = 64U;
 
         /* PIPE2 = BULK OUT endpoint 2 for CDC data interface */
         USB_PIPESEL = USB_PIPE_CDC_DEV_BULK_OUT;
-        USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_CDC_BULK_OUT_EP_NUM | USB_PIPECFG_DBLB);
+        USB_PIPECFG = (uint16_t)(USB_PIPECFG_BULK | USB_CDC_BULK_OUT_EP_NUM);
         USB_PIPEMAXP = 64U;
 
         /* PIPE6 = INT IN endpoint 3 for CDC notifications */
@@ -1618,16 +1684,44 @@ drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len)
         return DRV_ERR;
     }
 
-    usb_fifo_select_pipe(USB_PIPE_CDC_DEV_BULK_IN, USB_DIR_IN);
+    /* Set NAK and clear FIFO/status before starting a new transfer so
+     * any stale state from a previous call does not corrupt this one. */
+    usb_pipe_set_pid(USB_PIPE_CDC_DEV_BULK_IN, USB_CTR_PID_NAK);
+    usb_pipe_clear_buffer(USB_PIPE_CDC_DEV_BULK_IN);
+    usb_clear_bemp(USB_PIPE_CDC_DEV_BULK_IN);
+    usb_clear_nrdy(USB_PIPE_CDC_DEV_BULK_IN);
 
     while (sent < len)
     {
         uint16_t chunk = (uint16_t)((len - sent) > 64U ? 64U : (len - sent));
+
+        /* Step 1: NAK first — stop hardware from touching FIFO while CPU
+         * is writing, per FSP usb_pstd_buf_to_fifo pattern. */
+        usb_pipe_set_pid(USB_PIPE_CDC_DEV_BULK_IN, USB_CTR_PID_NAK);
+
+        /* Step 2: Select CFIFO for PIPE1 IN direction. */
+        usb_fifo_select_pipe(USB_PIPE_CDC_DEV_BULK_IN, USB_DIR_IN);
+
+        /* Step 3: Write payload into FIFO. */
         if (usb_fifo_write(&data[sent], chunk) != DRV_OK)
         {
+            usb_device_abort_bulk_in(USB_PIPE_CDC_DEV_BULK_IN);
             return DRV_TIMEOUT;
         }
+
+        /* Step 4: For short (last) packet BVAL must be set so the USBFS
+         * commits the partial FIFO content as a USB packet.  Without this
+         * the hardware waits for more data and the packet is never sent.
+         * (FSP: hw_usb_set_bval when data_cnt < buf_size) */
+        if (chunk < 64U)
+        {
+            USB_CFIFOCTR |= USB_FIFOCTR_BVAL;
+        }
+
+        /* Step 5: Clear BEMP latch for PIPE1 before enabling BUF. */
         USB_BEMPSTS = (uint16_t)~(1U << USB_PIPE_CDC_DEV_BULK_IN);
+
+        /* Step 6: Re-enable endpoint — hardware will now send the packet. */
         usb_pipe_set_pid(USB_PIPE_CDC_DEV_BULK_IN, USB_CTR_PID_BUF);
 
         write_st = usb_device_wait_bulk_in_complete(USB_PIPE_CDC_DEV_BULK_IN);
@@ -1979,6 +2073,14 @@ void USB_PollEvents(void)
 {
     uint8_t pass;
 
+    /* USB_PollEvents can be called from both usb_svc task and USB IRQ.
+     * Ignore nested entry to avoid state-machine races and duplicate handling. */
+    if (g_usb_poll_busy != 0U)
+    {
+        return;
+    }
+    g_usb_poll_busy = 1U;
+
     for (pass = 0U; pass < 8U; pass++)
     {
         uint16_t is0 = USB_INTSTS0;
@@ -2080,6 +2182,11 @@ void USB_PollEvents(void)
         {
             if ((g_mode == USB_MODE_DEVICE_CDC) && ((USB_BEMPSTS & USB_PIPE_MASK(0U)) != 0U))
             {
+                /* Immediately NAK pipe 0 to prevent the hardware from sending
+                 * a zero-length IN packet (ZLP) while the CPU refills the
+                 * FIFO.  A ZLP signals premature end-of-transfer to the host,
+                 * aborting control descriptor reads mid-stream. */
+                usb_pipe_set_pid(0U, USB_CTR_PID_NAK);
                 usb_clear_bemp(0U);
 
                 if (g_usb_ctrl_in_remaining != 0U)
@@ -2104,6 +2211,8 @@ void USB_PollEvents(void)
 
         break;
     }
+
+    g_usb_poll_busy = 0U;
 }
 
 void USBI0_IRQHandler(void)

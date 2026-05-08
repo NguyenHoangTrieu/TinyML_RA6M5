@@ -172,21 +172,53 @@ done:
  * USB CDC backend
  * =========================================================================
  * Compiled when OS_DEBUG_ENABLE=1 and OS_DEBUG_BACKEND_USB_CDC=1.
- * Sends each debug_print() message as a single fire-and-forget CDC packet
- * via USB_Dev_Write_Log().  USB must already be initialised by the
- * test_usb_cdc_logger_init() task before calling debug_print().
+ * Sends each debug_print() message once over USB_Dev_Write() so the output
+ * shape matches UART and avoids duplicate/truncated fallback frames.
  * ========================================================================= */
 
 #if OS_DEBUG_ENABLE && OS_DEBUG_BACKEND_USB_CDC
 
 #include "drv_usb.h"
+#include "kernel.h"
 #include <stdarg.h>
 #include <stdio.h>
 
+static volatile uint8_t s_usb_dbg_lock = 0U;
+
+static uint8_t usb_dbg_try_lock(void)
+{
+    uint32_t tries;
+
+    for (tries = 0U; tries < 10000U; tries++)
+    {
+        OS_EnterCritical();
+        if (s_usb_dbg_lock == 0U)
+        {
+            s_usb_dbg_lock = 1U;
+            OS_ExitCritical();
+            return 1U;
+        }
+        OS_ExitCritical();
+    }
+
+    return 0U;
+}
+
+static void usb_dbg_unlock(void)
+{
+    OS_EnterCritical();
+    s_usb_dbg_lock = 0U;
+    OS_ExitCritical();
+}
+
 void debug_print(const char *fmt, ...)
 {
-    char    buf[64];
-    int     n;
+    char out[256];
+    uint32_t tick;
+    int n_prefix;
+    int n_body;
+    int n_total;
+    size_t body_cap;
     va_list ap;
 
     if (fmt == NULL)
@@ -194,18 +226,48 @@ void debug_print(const char *fmt, ...)
         return;
     }
 
+    if (usb_dbg_try_lock() == 0U)
+    {
+        return;
+    }
+
+    tick = OS_GetTick();
+    n_prefix = snprintf(out, sizeof(out), "[%lu ms] ", (unsigned long)tick);
+    if (n_prefix < 0)
+    {
+        usb_dbg_unlock();
+        return;
+    }
+    if ((size_t)n_prefix >= sizeof(out))
+    {
+        usb_dbg_unlock();
+        return;
+    }
+
+    body_cap = sizeof(out) - (size_t)n_prefix;
+
     va_start(ap, fmt);
-    n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    n_body = vsnprintf(&out[n_prefix], body_cap, fmt, ap);
     va_end(ap);
 
-    if (n > 0)
+    if (n_body < 0)
     {
-        if ((size_t)n >= sizeof(buf))
-        {
-            n = (int)(sizeof(buf) - 1U);
-        }
-        (void)USB_Dev_Write_Log((const uint8_t *)buf, (uint32_t)n);
+        usb_dbg_unlock();
+        return;
     }
+
+    if ((size_t)n_body >= body_cap)
+    {
+        n_body = (int)(body_cap - 1U);
+    }
+
+    n_total = n_prefix + n_body;
+    if (n_total > 0)
+    {
+        (void)USB_Dev_Write((const uint8_t *)out, (uint32_t)n_total);
+    }
+
+    usb_dbg_unlock();
 }
 
 #endif /* OS_DEBUG_ENABLE && OS_DEBUG_BACKEND_USB_CDC */

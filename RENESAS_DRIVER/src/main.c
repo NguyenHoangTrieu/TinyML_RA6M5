@@ -11,12 +11,13 @@
 #include "debug_print.h"
 #include "drv_i2c.h"
 #include "drv_uart.h"
+#include "drv_usb.h"
 #include "kernel.h"
 #include "rtos_config.h"
+#include "server_comm.h"
 #include "semaphore.h"
 #include "software_timer.h"
 #include "test/app_test_config.h"
-#include "test/test_iaq.h"
 #include "test/test_flash_nvs.h"
 #include "test/test_rtos.h"
 #include "test/test_usb.h"
@@ -29,6 +30,7 @@
 
 #define TASK_PRIO_LED_TIMER 3U
 #define TASK_PRIO_LED_BLINK 4U
+#define TASK_PRIO_USB_SVC   2U
 
 #define LED1_ON() GPIO_Write_Pin(LED_PORT, LED1_PIN, GPIO_PIN_SET)
 #define LED2_ON() GPIO_Write_Pin(LED_PORT, LED2_PIN, GPIO_PIN_SET)
@@ -39,6 +41,9 @@
 
 static OS_TCB_t g_led_blink_tcb;
 static OS_TCB_t g_timer_led_tcb;
+#if OS_DEBUG_BACKEND_USB_CDC
+static OS_TCB_t g_usb_svc_tcb;
+#endif
 static Semaphore_t g_led_timer_sem;
 static Timer_t g_led_timer;
 
@@ -125,13 +130,39 @@ static void task_timer_led(void *arg) {
   }
 }
 
+#if OS_DEBUG_BACKEND_USB_CDC
+static void task_usb_service(void *arg) {
+  (void)arg;
+
+  for (;;) {
+    USB_PollEvents();
+    OS_Task_Delay(1U);
+  }
+}
+#endif
+
 int main(void) {
   int32_t status;
   uint8_t tdre_ok;
+#if OS_DEBUG_BACKEND_USB_CDC
+  drv_status_t usb_st;
+#endif
 
   led_init();
+
+#if OS_DEBUG_BACKEND_USB_CDC
+  usb_st = USB_Init(USB_MODE_DEVICE_CDC);
+  if (usb_st != DRV_OK) {
+    for (;;) {
+      led_toggle(LED3_PIN);
+      delay_ms_bm(80U);
+    }
+  }
+#endif
+
   debug_print_init();
 
+#if OS_DEBUG_BACKEND_UART
   tdre_ok = (SCI_SSR(OS_DEBUG_UART_CHANNEL) & SSR_TDRE) ? 1U : 0U;
   if (tdre_ok == 0U) {
     for (uint8_t i = 0U; i < 10U; i++) {
@@ -139,10 +170,17 @@ int main(void) {
       delay_ms_bm(80U);
     }
   }
-
+#else
+  tdre_ok = 1U;
+#endif
+  
   debug_print("\r\n=== RA6M5 RTOS Application Test ===\r\n");
+#if OS_DEBUG_BACKEND_USB_CDC
+  debug_print("DEBUG : USB CDC (Device FS)\r\n");
+#else
   debug_print("UART  : SCI7 P613/P614 @ %u baud\r\n",
               (unsigned)OS_DEBUG_UART_BAUDRATE);
+#endif
   debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
   debug_print("TDRE  : %s\r\n", tdre_ok != 0U ? "OK" : "FAIL (check MSTPCRB)");
 
@@ -155,18 +193,22 @@ int main(void) {
   /* Khởi tạo RTOS Preemptive Test Task */
   test_rtos_preemptive_init();
 
-  /* Initialize AI Inference Test Task (runs with synthetic sensor data) */
-  test_iaq_inference_init();
-
-#if OS_USB_TEST_MODE == OS_USB_TEST_MODE_DEVICE_CDC
-  debug_print("[USB TEST] Mode: Device CDC logger task\r\n");
-  test_usb_cdc_logger_init();
-#elif OS_USB_TEST_MODE == OS_USB_TEST_MODE_HOST_DESCRIPTOR
-  debug_print("[USB TEST] Mode: Host descriptor test task\r\n");
-  test_usb_host_descriptor_init();
-#else
-  debug_print("[USB TEST] Mode: disabled\r\n");
+#if OS_DEBUG_BACKEND_USB_CDC
+  status = OS_Task_Create(&g_usb_svc_tcb, task_usb_service, (void *)0,
+                          TASK_PRIO_USB_SVC, "usb_svc");
+  if (status != OS_OK) {
+    app_panic("OS_Task_Create usb_svc", status);
+  }
 #endif
+
+#if OS_USB_CDC_TEST_ENABLE
+  /* test_usb_cdc_logger: calls USB_Init + USB_PollEvents internally.
+   * Prints all USB trace events via UART (OS_DEBUG_BACKEND_UART=1)
+   * and sends periodic test messages via USB_Dev_Printf_Log. */
+  test_usb_cdc_logger_init();
+#endif
+
+  server_comm_init();
 
 #if OS_FLASH_NVS_TEST_ENABLE != 0U
   debug_print("[FLASH NVS TEST] Mode: scratch-block self-test\r\n");

@@ -162,7 +162,7 @@ Recommended debug probes:
 
 Integration point: `src/main.c`
 
-Build-time selector in `Config/rtos_config.h`:
+Build-time selector in `src/test/app_test_config.h`:
 - `OS_USB_TEST_MODE_NONE`
 - `OS_USB_TEST_MODE_DEVICE_CDC`
 - `OS_USB_TEST_MODE_HOST_DESCRIPTOR`
@@ -183,8 +183,19 @@ Provided test hooks:
   - Logs Device Descriptor summary and parsed BULK endpoints over `debug_print`
 
 Current ownership of the USB test selector:
-- `OS_USB_TEST_MODE_*` macros live in `Config/rtos_config.h`
-- `src/main.c` selects exactly one USB role-specific test task from those macros
+- `OS_USB_TEST_MODE_*` macros live in `src/test/app_test_config.h`
+- `src/main.c` currently leaves USB test tasks disabled in normal runtime flow
+
+---
+
+## 2026-05-08 Update
+
+- USB CDC log path is now used as the production debug backend (`debug_print` over USB CDC), not only as a test task.
+- `src/main.c` no longer starts `test_usb_cdc_logger_init()` for normal logging; instead it:
+  - calls `USB_Init(USB_MODE_DEVICE_CDC)` at startup when USB debug backend is enabled,
+  - starts a lightweight `usb_svc` task that calls `USB_PollEvents()` every 1 ms.
+- Fire-and-forget CDC TX (`USB_Dev_Write_Log`) was hardened to recover PIPE1 state before each packet and abort/recover on FIFO timeout.
+- This avoids the previous failure mode where a transient timeout wedged subsequent USB CDC logs.
 
 ---
 
