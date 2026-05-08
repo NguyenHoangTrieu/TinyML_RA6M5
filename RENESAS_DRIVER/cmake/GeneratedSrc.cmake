@@ -31,6 +31,7 @@ file(GLOB_RECURSE Source_Files CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Source/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/FWUpdate/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/**/*.c
 )
 
@@ -114,6 +115,7 @@ target_include_directories(${PROJECT_NAME}.elf
     ${CMAKE_CURRENT_SOURCE_DIR}/src/test
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Include
     ${CMAKE_CURRENT_SOURCE_DIR}/Config
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/FWUpdate
     # RTOS kernel headers
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/include
     # BSP sensor drivers
