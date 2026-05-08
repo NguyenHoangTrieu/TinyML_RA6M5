@@ -25,6 +25,24 @@
 
 #include "rtos_config.h"
 
+/**
+ * OS_DEBUG_BACKEND_USB_CDC — route debug_print() to the USB FS CDC BULK IN
+ * pipe instead of the UART.  USB must already be initialised by
+ * test_usb_cdc_logger_init() before the first debug_print() call.
+ *
+ *   0 = disabled (default — UART SCI backend active)
+ *   1 = USB CDC fire-and-forget log path
+ *
+ * Only one backend may be active at a time (UART or USB CDC).
+ */
+#ifndef OS_DEBUG_BACKEND_USB_CDC
+#define OS_DEBUG_BACKEND_USB_CDC  0
+#endif
+
+#if OS_DEBUG_BACKEND_UART && OS_DEBUG_BACKEND_USB_CDC
+#error "debug_print: select only one backend (UART or USB_CDC)"
+#endif
+
 #if OS_DEBUG_ENABLE
 
   #if OS_DEBUG_BACKEND_SEMIHOST
@@ -34,13 +52,19 @@
     static inline void debug_print_init(void) { /* nothing needed */ }
     #define debug_print(fmt, ...)  printf(fmt, ##__VA_ARGS__)
 
+  #elif OS_DEBUG_BACKEND_USB_CDC
+    /* --- USB CDC backend ----------------------------------------------- */
+    /* Fire-and-forget BULK IN send; USB must be init'd before first call.  */
+    static inline void debug_print_init(void) { /* USB init done elsewhere */ }
+    void debug_print(const char *fmt, ...);
+
   #else
     /* --- UART backend (default) ----------------------------------------- */
     /* Bare-metal SCI transmit; no heap, no stdio dependency.                */
     void debug_print_init(void);
     void debug_print(const char *fmt, ...);
 
-  #endif /* OS_DEBUG_BACKEND_SEMIHOST */
+  #endif /* OS_DEBUG_BACKEND_SEMIHOST / OS_DEBUG_BACKEND_USB_CDC */
 
 #else  /* OS_DEBUG_ENABLE == 0 -------------------------------------------- */
   /* Strip everything: zero code, zero data, no warnings about unused args. */

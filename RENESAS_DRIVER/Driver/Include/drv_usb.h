@@ -130,6 +130,16 @@ uint16_t USB_Debug_GetDroppedTraceCount(void);
  * ----------------------------------------------------------------------- */
 drv_status_t USB_Dev_Write(const uint8_t *data, uint32_t len);
 drv_status_t USB_Dev_Printf(const char *fmt, ...);
+
+/**
+ * USB_Dev_Write_Log — fire-and-forget single-packet CDC write for debug
+ * logging.  Writes up to 64 bytes into the BULK IN FIFO and kicks BUF
+ * without waiting for BEMP.  Returns DRV_ERR (drop) if the pipe is still
+ * busy from a previous packet or the device is not configured.
+ */
+drv_status_t USB_Dev_Write_Log(const uint8_t *data, uint32_t len);
+drv_status_t USB_Dev_Printf_Log(const char *fmt, ...);
+
 void USB_Dev_SetConfigured(uint8_t configured);
 uint8_t USB_Dev_IsConfigured(void);
 uint8_t USB_Dev_IsHostReady(void);

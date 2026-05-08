@@ -13,7 +13,7 @@
 #include "debug_print.h"
 #include "rtos_config.h"
 
-#if OS_DEBUG_ENABLE && !OS_DEBUG_BACKEND_SEMIHOST
+#if OS_DEBUG_ENABLE && !OS_DEBUG_BACKEND_SEMIHOST && !OS_DEBUG_BACKEND_USB_CDC
 
 #include "drv_uart.h"
 #include "kernel.h"
@@ -166,4 +166,46 @@ done:
     va_end(args);
 }
 
-#endif /* OS_DEBUG_ENABLE && !OS_DEBUG_BACKEND_SEMIHOST */
+#endif /* OS_DEBUG_ENABLE && !OS_DEBUG_BACKEND_SEMIHOST && !OS_DEBUG_BACKEND_USB_CDC */
+
+/* =========================================================================
+ * USB CDC backend
+ * =========================================================================
+ * Compiled when OS_DEBUG_ENABLE=1 and OS_DEBUG_BACKEND_USB_CDC=1.
+ * Sends each debug_print() message as a single fire-and-forget CDC packet
+ * via USB_Dev_Write_Log().  USB must already be initialised by the
+ * test_usb_cdc_logger_init() task before calling debug_print().
+ * ========================================================================= */
+
+#if OS_DEBUG_ENABLE && OS_DEBUG_BACKEND_USB_CDC
+
+#include "drv_usb.h"
+#include <stdarg.h>
+#include <stdio.h>
+
+void debug_print(const char *fmt, ...)
+{
+    char    buf[64];
+    int     n;
+    va_list ap;
+
+    if (fmt == NULL)
+    {
+        return;
+    }
+
+    va_start(ap, fmt);
+    n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    if (n > 0)
+    {
+        if ((size_t)n >= sizeof(buf))
+        {
+            n = (int)(sizeof(buf) - 1U);
+        }
+        (void)USB_Dev_Write_Log((const uint8_t *)buf, (uint32_t)n);
+    }
+}
+
+#endif /* OS_DEBUG_ENABLE && OS_DEBUG_BACKEND_USB_CDC */
