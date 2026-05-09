@@ -11,7 +11,9 @@
 #include "debug_print.h"
 #include "drv_clk.h"
 #include "drv_i2c.h"
+#include "drv_uart.h"
 #include "drv_usb.h"
+#include "board_config.h"
 #include "kernel.h"
 #include "rtos_config.h"
 #include "server_comm.h"
@@ -23,24 +25,22 @@
 #include "test/test_usb.h"
 #include <stdint.h>
 
-#define LED_PORT GPIO_PORT6
-#define LED1_PIN 10U
-#define LED2_PIN 3U
-#define LED3_PIN 9U
-
-/* Set to 1 for a bare-minimum CPU/alive test (infinite LED pattern loop). */
-#define MCU_SMOKE_TEST_ONLY 0U
+/* Board-specific LED definitions from board_config.h */
+#define LED1_PORT_NUM LED1_PORT
+#define LED2_PORT_NUM LED2_PORT
+#define LED3_PORT_NUM LED3_PORT
 
 #define TASK_PRIO_LED_TIMER 3U
 #define TASK_PRIO_LED_BLINK 4U
 #define TASK_PRIO_USB_SVC   2U
 
-#define LED1_ON() GPIO_Write_Pin(LED_PORT, LED1_PIN, GPIO_PIN_SET)
-#define LED2_ON() GPIO_Write_Pin(LED_PORT, LED2_PIN, GPIO_PIN_SET)
-#define LED3_ON() GPIO_Write_Pin(LED_PORT, LED3_PIN, GPIO_PIN_SET)
-#define LED1_OFF() GPIO_Write_Pin(LED_PORT, LED1_PIN, GPIO_PIN_RESET)
-#define LED2_OFF() GPIO_Write_Pin(LED_PORT, LED2_PIN, GPIO_PIN_RESET)
-#define LED3_OFF() GPIO_Write_Pin(LED_PORT, LED3_PIN, GPIO_PIN_RESET)
+/* LED macros now use individual port definitions */
+#define LED1_ON()  GPIO_Write_Pin((GPIO_PORT_t)LED1_PORT_NUM, LED1_PIN, GPIO_PIN_SET)
+#define LED2_ON()  GPIO_Write_Pin((GPIO_PORT_t)LED2_PORT_NUM, LED2_PIN, GPIO_PIN_SET)
+#define LED3_ON()  GPIO_Write_Pin((GPIO_PORT_t)LED3_PORT_NUM, LED3_PIN, GPIO_PIN_SET)
+#define LED1_OFF() GPIO_Write_Pin((GPIO_PORT_t)LED1_PORT_NUM, LED1_PIN, GPIO_PIN_RESET)
+#define LED2_OFF() GPIO_Write_Pin((GPIO_PORT_t)LED2_PORT_NUM, LED2_PIN, GPIO_PIN_RESET)
+#define LED3_OFF() GPIO_Write_Pin((GPIO_PORT_t)LED3_PORT_NUM, LED3_PIN, GPIO_PIN_RESET)
 
 static OS_TCB_t g_led_blink_tcb;
 static OS_TCB_t g_timer_led_tcb;
@@ -51,17 +51,30 @@ static Semaphore_t g_led_timer_sem;
 static Timer_t g_led_timer;
 
 static void led_init(void) {
-  GPIO_Config(LED_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
-  GPIO_Config(LED_PORT, LED2_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
-  GPIO_Config(LED_PORT, LED3_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
+  GPIO_Config((GPIO_PORT_t)LED1_PORT_NUM, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
+  GPIO_Config((GPIO_PORT_t)LED2_PORT_NUM, LED2_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
+  GPIO_Config((GPIO_PORT_t)LED3_PORT_NUM, LED3_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
   LED1_OFF();
   LED2_OFF();
   LED3_OFF();
 }
 
 static void led_toggle(uint8_t pin) {
-  uint8_t cur = GPIO_Read_Pin(LED_PORT, pin);
-  GPIO_Write_Pin(LED_PORT, pin, (cur != 0U) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+  /* Determine which port this pin belongs to based on board config */
+  GPIO_PORT_t port;
+  
+  if (pin == LED1_PIN) {
+    port = (GPIO_PORT_t)LED1_PORT_NUM;
+  } else if (pin == LED2_PIN) {
+    port = (GPIO_PORT_t)LED2_PORT_NUM;
+  } else if (pin == LED3_PIN) {
+    port = (GPIO_PORT_t)LED3_PORT_NUM;
+  } else {
+    return;  /* Unknown pin */
+  }
+  
+  uint8_t cur = GPIO_Read_Pin(port, pin);
+  GPIO_Write_Pin(port, pin, (cur != 0U) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
 static void delay_ms_bm(uint32_t ms) {
@@ -70,41 +83,6 @@ static void delay_ms_bm(uint32_t ms) {
     __asm volatile("nop");
   }
 }
-
-#if MCU_SMOKE_TEST_ONLY
-static void mcu_smoke_test_loop(void) {
-  /* CK board LEDs */
-  GPIO_Config(GPIO_PORT6, 10U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT); /* P610 */
-  GPIO_Config(GPIO_PORT6, 9U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P609 */
-  GPIO_Config(GPIO_PORT6, 3U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P603 */
-  GPIO_Config(GPIO_PORT6, 1U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P601 */
-
-  /* EK board LEDs (in case board mapping still differs) */
-  GPIO_Config(GPIO_PORT0, 6U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P006 */
-  GPIO_Config(GPIO_PORT0, 7U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P007 */
-  GPIO_Config(GPIO_PORT0, 8U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P008 */
-
-  for (;;) {
-    GPIO_Write_Pin(GPIO_PORT6, 10U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT6, 9U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT6, 3U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT6, 1U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT0, 6U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT0, 7U, GPIO_PIN_SET);
-    GPIO_Write_Pin(GPIO_PORT0, 8U, GPIO_PIN_SET);
-    delay_ms_bm(120U);
-
-    GPIO_Write_Pin(GPIO_PORT6, 10U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT6, 9U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT6, 3U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT6, 1U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT0, 6U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT0, 7U, GPIO_PIN_RESET);
-    GPIO_Write_Pin(GPIO_PORT0, 8U, GPIO_PIN_RESET);
-    delay_ms_bm(120U);
-  }
-}
-#endif
 
 static void app_panic(const char *step, int32_t err) {
   debug_print("FATAL: %s failed (%d)\r\n", step, (int)err);
@@ -185,11 +163,9 @@ int main(void) {
 
   led_init();
 
-#if MCU_SMOKE_TEST_ONLY
-  mcu_smoke_test_loop();
-#endif
-
   debug_print_init();
+  /* Force UART self-check log at boot: re-init UART and log all register values */
+  UART_Init((UART_t)DEBUG_UART_CHANNEL, DEBUG_UART_BAUDRATE);
   dbg_link_ok = debug_print_backend_ready();
   if (dbg_link_ok == 0U) {
     /* Continue app execution even when debug link is not ready yet. */
@@ -205,13 +181,15 @@ int main(void) {
 #if OS_DEBUG_BACKEND_USB_CDC
   debug_print("DEBUG : USB CDC (Device FS)\r\n");
 #else
-  debug_print("UART  : SCI3 D0/D1 (P706/P707) @ %u baud\r\n",
-              (unsigned)OS_DEBUG_UART_BAUDRATE);
+  debug_print("BOARD : %s\r\n", IS_BOARD_CK() ? "CK-RA6M5" : "EK-RA6M5");
+  debug_print("UART  : SCI%u @ %u baud\r\n",
+              (unsigned)DEBUG_UART_CHANNEL,
+              (unsigned)DEBUG_UART_BAUDRATE);
 #endif
   debug_print("CLK   : ICLK=%u Hz, SCI_CLK=%u Hz\r\n",
               (unsigned)CLK_GetActualICLK(),
               (unsigned)CLK_GetActualSCIClock());
-  debug_print("UARTCFG: BRR_DIV=%u\r\n", (unsigned)OS_DEBUG_UART_BRR_DIVISOR);
+  debug_print("UARTCFG: BRR_DIV=%u\r\n", (unsigned)DEBUG_UART_BRR_DIV);
   debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
   debug_print("LINK  : %s\r\n", dbg_link_ok != 0U ? "OK" : "FAIL");
 

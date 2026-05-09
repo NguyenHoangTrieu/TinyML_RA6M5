@@ -4,6 +4,8 @@ Tags: #done #firmware #clock
 
 Clock and module stop control driver for RA6M5. Files: `Driver/Include/drv_clk.h`, `Driver/Source/drv_clk.c`. Hardware constraints: [[HW_RA6M5_ClockTree]]. Write protection: [[FW_RWP_Driver]]. Formerly split across `CGC.h` (misnamed) and `LPM.h` (misnamed — contained MSTPCR, not LPM). Reorganized in Phase 5.
 
+**Board Support**: Unified configuration for CK-RA6M5 and EK-RA6M5 via `board_config.h`. Set `BOARD_TYPE` to switch between boards — all clock initialization and fallback logic is identical (200 MHz PLL with HOCO 48 MHz fallback).
+
 ---
 
 ## API
@@ -54,6 +56,33 @@ Result:
 
 See [[HW_RA6M5_ClockTree]].
 
+### Fallback Mode (on PLL/MOSC failure)
+
+If main oscillator (MOSC) or PLL fails to stabilize within `CLK_WAIT_TIMEOUT_LOOPS`, the driver automatically falls back to HOCO (internal oscillator):
+
+```c
+static void clk_fallback_to_hoco(void)
+{
+    /* Switch to HOCO 48 MHz */
+    HOCOCR &= ~MOSCCR_MOSTP;
+    SCKDIVCR = all /1 dividers;  /* All clocks = 48 MHz */
+    SCKSCR = SCKSCR_HOCO;
+    
+    g_actual_pclk_hz = 48000000UL;
+    g_actual_iclk_hz = 48000000UL;
+    g_clk_fallback_happened = 1U;
+    
+    /* Signal fallback via LED3 (board-specific from board_config.h) */
+    GPIO_Write_Pin((GPIO_PORT_t)LED3_PORT, LED3_PIN, GPIO_PIN_SET);
+}
+```
+
+For debugging, check:
+- `CLK_GetFallbackOccurred()` returns 1 if fallback occurred
+- `CLK_GetActualICLK()` returns 200000000 (success) or 48000000 (fallback)
+- `CLK_GetActualSCIClock()` returns 50000000 (success) or 48000000 (fallback)
+- LED3 toggles once on boot if fallback occurred
+
 ---
 
 ## CLK_ModuleStart_SCI
@@ -81,3 +110,32 @@ RIIC module stop is also released here (MSTPCRB bits 9/8/7), by `i2c_clock_init(
 - `LPM.h` — contained MSTPCR + SCI_t enum (no LPM logic at all)
 
 Old headers are now forwarding stubs: `#include "drv_clk.h"`.
+
+---
+
+## Board Configuration Integration
+
+**Files involved**:
+- `Driver/Include/board_config.h` — Master configuration (set `BOARD_TYPE` here)
+- `Driver/Include/rtos_config.h` — Sources debug timing from board config
+- `Config/rtos_config.h` — Includes board_config.h for unified setup
+
+**Key**: LED3 fallback signal uses board-specific pin from `board_config.h`:
+
+```c
+/* CK-RA6M5 */
+#define LED3_PORT  6
+#define LED3_PIN   9   /* P609 */
+
+/* EK-RA6M5 */
+#define LED3_PORT  0
+#define LED3_PIN   8   /* P008 */
+```
+
+Clock initialization is **identical** on both boards; only the fallback LED signal differs by board.
+
+**How to switch boards**: Edit `board_config.h`, line 19:
+```c
+#define BOARD_TYPE      BOARD_TYPE_CK    // or BOARD_TYPE_EK
+```
+Then rebuild — all drivers adapt automatically.

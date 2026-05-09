@@ -1,5 +1,6 @@
 #include "drv_clk.h"
 #include "drv_rwp.h"
+#include "board_config.h"
 #include "GPIO.h"
 
 /*
@@ -87,7 +88,7 @@ static void clk_fallback_to_hoco(void)
     g_clk_fallback_happened = 1U;
     
     /* Signal fallback on LED3: toggle once to indicate fallback occurred */
-    GPIO_Write_Pin(GPIO_PORT6, 9U, GPIO_PIN_SET);
+    GPIO_Write_Pin((GPIO_PORT_t)LED3_PORT, LED3_PIN, GPIO_PIN_SET);
 }
 
 static uint8_t clk_start_pll2_for_usb(void)

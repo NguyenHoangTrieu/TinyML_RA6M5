@@ -9,6 +9,8 @@
 #ifndef RTOS_CONFIG_H
 #define RTOS_CONFIG_H
 
+#include "board_config.h"
+
 /* ======================================================================
  * Clock & Tick
  * ====================================================================== */
@@ -101,18 +103,18 @@
 
 /**
  * SCI channel used for UART output (0–9).
- * UART3 (SCI3): RX=P706 (D0), TX=P707 (D1), PSEL=0x05 — Arduino UNO pins on CK-RA6M5.
+ * Automatically set from board_config.h based on BOARD_TYPE.
  */
-#define OS_DEBUG_UART_CHANNEL       3U
+#define OS_DEBUG_UART_CHANNEL       DEBUG_UART_CHANNEL
 
-/** Baud rate for the debug UART channel. */
-#define OS_DEBUG_UART_BAUDRATE      115200UL
+/** Baud rate for the debug UART channel (from board_config.h). */
+#define OS_DEBUG_UART_BAUDRATE      DEBUG_UART_BAUDRATE
 
 /**
- * UART BRR divisor mode for bring-up tuning.
+ * UART BRR divisor mode for bring-up tuning (from board_config.h).
  * 4U: SEMR BGDM=1 + ABCS=1  (effective /4)
  * 8U: SEMR BGDM=1 + ABCS=0  (effective /8)
  */
-#define OS_DEBUG_UART_BRR_DIVISOR   8U
+#define OS_DEBUG_UART_BRR_DIVISOR   DEBUG_UART_BRR_DIV
 
 #endif /* RTOS_CONFIG_H */
