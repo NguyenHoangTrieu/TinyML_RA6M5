@@ -9,8 +9,8 @@
 
 #include "GPIO.h"
 #include "debug_print.h"
+#include "drv_clk.h"
 #include "drv_i2c.h"
-#include "drv_uart.h"
 #include "drv_usb.h"
 #include "kernel.h"
 #include "rtos_config.h"
@@ -23,10 +23,13 @@
 #include "test/test_usb.h"
 #include <stdint.h>
 
-#define LED_PORT GPIO_PORT0
-#define LED1_PIN 6U
-#define LED2_PIN 7U
-#define LED3_PIN 8U
+#define LED_PORT GPIO_PORT6
+#define LED1_PIN 10U
+#define LED2_PIN 3U
+#define LED3_PIN 9U
+
+/* Set to 1 for a bare-minimum CPU/alive test (infinite LED pattern loop). */
+#define MCU_SMOKE_TEST_ONLY 0U
 
 #define TASK_PRIO_LED_TIMER 3U
 #define TASK_PRIO_LED_BLINK 4U
@@ -67,6 +70,41 @@ static void delay_ms_bm(uint32_t ms) {
     __asm volatile("nop");
   }
 }
+
+#if MCU_SMOKE_TEST_ONLY
+static void mcu_smoke_test_loop(void) {
+  /* CK board LEDs */
+  GPIO_Config(GPIO_PORT6, 10U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT); /* P610 */
+  GPIO_Config(GPIO_PORT6, 9U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P609 */
+  GPIO_Config(GPIO_PORT6, 3U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P603 */
+  GPIO_Config(GPIO_PORT6, 1U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P601 */
+
+  /* EK board LEDs (in case board mapping still differs) */
+  GPIO_Config(GPIO_PORT0, 6U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P006 */
+  GPIO_Config(GPIO_PORT0, 7U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P007 */
+  GPIO_Config(GPIO_PORT0, 8U, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);  /* P008 */
+
+  for (;;) {
+    GPIO_Write_Pin(GPIO_PORT6, 10U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT6, 9U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT6, 3U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT6, 1U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT0, 6U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT0, 7U, GPIO_PIN_SET);
+    GPIO_Write_Pin(GPIO_PORT0, 8U, GPIO_PIN_SET);
+    delay_ms_bm(120U);
+
+    GPIO_Write_Pin(GPIO_PORT6, 10U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT6, 9U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT6, 3U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT6, 1U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT0, 6U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT0, 7U, GPIO_PIN_RESET);
+    GPIO_Write_Pin(GPIO_PORT0, 8U, GPIO_PIN_RESET);
+    delay_ms_bm(120U);
+  }
+}
+#endif
 
 static void app_panic(const char *step, int32_t err) {
   debug_print("FATAL: %s failed (%d)\r\n", step, (int)err);
@@ -143,46 +181,39 @@ static void task_usb_service(void *arg) {
 
 int main(void) {
   int32_t status;
-  uint8_t tdre_ok;
-#if OS_DEBUG_BACKEND_USB_CDC
-  drv_status_t usb_st;
-#endif
+  uint8_t dbg_link_ok;
 
   led_init();
 
-#if OS_DEBUG_BACKEND_USB_CDC
-  usb_st = USB_Init(USB_MODE_DEVICE_CDC);
-  if (usb_st != DRV_OK) {
-    for (;;) {
-      led_toggle(LED3_PIN);
-      delay_ms_bm(80U);
-    }
-  }
+#if MCU_SMOKE_TEST_ONLY
+  mcu_smoke_test_loop();
 #endif
 
   debug_print_init();
-
-#if OS_DEBUG_BACKEND_UART
-  tdre_ok = (SCI_SSR(OS_DEBUG_UART_CHANNEL) & SSR_TDRE) ? 1U : 0U;
-  if (tdre_ok == 0U) {
-    for (uint8_t i = 0U; i < 10U; i++) {
-      led_toggle(LED3_PIN);
-      delay_ms_bm(80U);
-    }
+  dbg_link_ok = debug_print_backend_ready();
+  if (dbg_link_ok == 0U) {
+    /* Continue app execution even when debug link is not ready yet. */
+    LED3_OFF();
   }
-#else
-  tdre_ok = 1U;
-#endif
+  
+  /* Check if clock fell back to HOCO during startup */
+  if (CLK_GetFallbackOccurred() != 0U) {
+    debug_print("[WARN] Clock fallback to HOCO triggered - running at 48 MHz instead of 200 MHz\r\n");
+  }
   
   debug_print("\r\n=== RA6M5 RTOS Application Test ===\r\n");
 #if OS_DEBUG_BACKEND_USB_CDC
   debug_print("DEBUG : USB CDC (Device FS)\r\n");
 #else
-  debug_print("UART  : SCI7 P613/P614 @ %u baud\r\n",
+  debug_print("UART  : SCI3 D0/D1 (P706/P707) @ %u baud\r\n",
               (unsigned)OS_DEBUG_UART_BAUDRATE);
 #endif
+  debug_print("CLK   : ICLK=%u Hz, SCI_CLK=%u Hz\r\n",
+              (unsigned)CLK_GetActualICLK(),
+              (unsigned)CLK_GetActualSCIClock());
+  debug_print("UARTCFG: BRR_DIV=%u\r\n", (unsigned)OS_DEBUG_UART_BRR_DIVISOR);
   debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
-  debug_print("TDRE  : %s\r\n", tdre_ok != 0U ? "OK" : "FAIL (check MSTPCRB)");
+  debug_print("LINK  : %s\r\n", dbg_link_ok != 0U ? "OK" : "FAIL");
 
   I2C_Init(I2C1, 50U, I2C_SPEED_STANDARD);
   i2c_scan(I2C1);
@@ -201,7 +232,7 @@ int main(void) {
   }
 #endif
 
-#if OS_USB_CDC_TEST_ENABLE
+#if (OS_USB_TEST_MODE == OS_USB_TEST_MODE_DEVICE_CDC)
   /* test_usb_cdc_logger: calls USB_Init + USB_PollEvents internally.
    * Drains USB trace ring buffer to UART and sends periodic test
    * messages via USB_Dev_Printf (blocking, waits for BEMP). */

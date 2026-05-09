@@ -18,6 +18,7 @@
  */
 
 #include "bsp_zmod4410.h"
+#include "GPIO.h"
 #include "kernel.h"
 #include <stdint.h>
 #include <string.h>
@@ -33,6 +34,10 @@
 #define ZMOD4410_STATUS_BUSY_BIT        (1U << 7U)  /* 1 = sequencer running */
 
 #define ZMOD4410_CMD_TRIGGER            0x80U   /* Start measurement        */
+
+/* CK-RA6M5 sensor RESET_N pin from board table: P307 (active-low). */
+#define ZMOD4410_RESET_PORT             GPIO_PORT3
+#define ZMOD4410_RESET_PIN              7U
 
 /* Sample rates for different operation modes (in seconds) */
 #define ZMOD4410_SAMPLE_TIME_IAQ_GEN2   3U      /* 3 second sample          */
@@ -51,6 +56,12 @@ static ZMOD4410_OpMode_t g_operation_mode = IAQ_2ND_GEN;
 static uint32_t g_measurement_count = 0U;
 static float g_ambient_temperature_c = 23.0f;
 static float g_ambient_humidity_pct = 50.0f;
+
+static void zmod4410_reset_pin_init(void)
+{
+    GPIO_Config(ZMOD4410_RESET_PORT, ZMOD4410_RESET_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
+    GPIO_Write_Pin(ZMOD4410_RESET_PORT, ZMOD4410_RESET_PIN, GPIO_PIN_SET);
+}
 
 static uint32_t zmod4410_get_warmup_samples(ZMOD4410_OpMode_t operation_mode)
 {
@@ -181,6 +192,9 @@ ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode)
     g_operation_mode = operation_mode;
     g_measurement_count = 0U;
 
+    zmod4410_reset_pin_init();
+    (void)ZMOD4410_HardReset();
+
     /* Wait for sensor to stabilize after power-on */
     zmod4410_delay_ms(100U);
 
@@ -202,6 +216,21 @@ ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode)
      * configuration blocks to 0x40/0x50/0x60/0x68 and uses production data
      * plus a host-side algorithm. Those pieces are intentionally deferred.
      */
+
+    return ZMOD4410_OK;
+}
+
+/* -----------------------------------------------------------------------
+ * ZMOD4410_HardReset — drive RESET_N low then high.
+ * ----------------------------------------------------------------------- */
+ZMOD4410_Status_t ZMOD4410_HardReset(void)
+{
+    zmod4410_reset_pin_init();
+
+    GPIO_Write_Pin(ZMOD4410_RESET_PORT, ZMOD4410_RESET_PIN, GPIO_PIN_RESET);
+    zmod4410_delay_ms(2U);
+    GPIO_Write_Pin(ZMOD4410_RESET_PORT, ZMOD4410_RESET_PIN, GPIO_PIN_SET);
+    zmod4410_delay_ms(10U);
 
     return ZMOD4410_OK;
 }

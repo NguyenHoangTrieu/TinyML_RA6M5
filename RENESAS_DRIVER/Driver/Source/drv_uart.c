@@ -2,6 +2,7 @@
 #include "drv_clk.h"
 #include "drv_common.h"
 #include "GPIO.h"
+#include "rtos_config.h"
 
 /* -----------------------------------------------------------------------
  * uart_clock_init — release module stop for one SCI channel.
@@ -15,15 +16,18 @@ static void uart_clock_init(uint8_t n)
 /* -----------------------------------------------------------------------
  * uart_pin_config — map UART channel to TX/RX port-pin pairs.
  *
- * Pin mapping (EK-RA6M5 schematic + RA6M5 pin function table):
+ * CK-RA6M5: UART3 (SCI3) is routed to Arduino UNO connector pins D0/D1.
+ * D0 = P706 (RXD3), D1 = P707 (TXD3) per CK-RA6M5 schematic.
+ *
+ * Pin mapping (RA6M5 pin function table):
  *   UART0 : RX=P110, TX=P111  PSEL=0x04
  *   UART1 : RX=P708, TX=P709  PSEL=0x05
  *   UART2 : RX=P301, TX=P302  PSEL=0x04
- *   UART3 : RX=P309, TX=P310  PSEL=0x05
+ *   UART3 : RX=P706, TX=P707  PSEL=0x05  ← CK-RA6M5 Arduino D0/D1
  *   UART4 : RX=P206, TX=P205  PSEL=0x04
  *   UART5 : RX=P502, TX=P501  PSEL=0x05
  *   UART6 : RX=P505, TX=P506  PSEL=0x04
- *   UART7 : RX=P614, TX=P613  PSEL=0x05  ← board UART
+ *   UART7 : RX=P614, TX=P613  PSEL=0x05
  *   UART8 : RX=P607, TX=PA00  PSEL=0x04
  *   UART9 : RX=P110, TX=P109  PSEL=0x05
  * ----------------------------------------------------------------------- */
@@ -38,7 +42,7 @@ static void uart_pin_config(UART_t uart)
         case UART0: tx_port=1;  tx_pin=1;  rx_port=1;  rx_pin=0;  psel=0x04U; break;
         case UART1: tx_port=7;  tx_pin=9;  rx_port=7;  rx_pin=8;  psel=0x05U; break;
         case UART2: tx_port=3;  tx_pin=2;  rx_port=3;  rx_pin=1;  psel=0x04U; break;
-        case UART3: tx_port=3;  tx_pin=10; rx_port=3;  rx_pin=9;  psel=0x05U; break;
+            case UART3: tx_port=7;  tx_pin=7;  rx_port=7;  rx_pin=6;  psel=0x05U; break;
         case UART4: tx_port=2;  tx_pin=5;  rx_port=2;  rx_pin=6;  psel=0x04U; break;
         case UART5: tx_port=5;  tx_pin=1;  rx_port=5;  rx_pin=2;  psel=0x05U; break;
         case UART6: tx_port=5;  tx_pin=6;  rx_port=5;  rx_pin=5;  psel=0x04U; break;
@@ -68,12 +72,13 @@ static void uart_pin_config(UART_t uart)
 /* -----------------------------------------------------------------------
  * UART_Init — initialise one SCI channel in async UART mode.
  *
- * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4) → divisor coefficient 8:
- *   BRR = SCI_PCLK_HZ / (8 × baudrate) − 1
+ * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4) → divisor coefficient 4:
+ *   BRR = SCI_PCLK_HZ / (4 × baudrate) − 1
  * ----------------------------------------------------------------------- */
 void UART_Init(UART_t uart, uint32_t baudrate)
 {
     uint8_t n = (uint8_t)uart;
+    uint32_t divisor;
     if (n > 9U) { return; }
 
     uart_clock_init(n);
@@ -81,10 +86,19 @@ void UART_Init(UART_t uart, uint32_t baudrate)
 
     SCI_SCR(n)  = 0x00U;                                        /* disable TX/RX while configuring */
     SCI_SMR(n)  = 0x00U;                                        /* async, 8-bit, no parity, 1 stop */
-    SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* BGDM=1(b6), ABCS=1(b4) → /8    */
-    
-    uint32_t divisor = 8UL * baudrate;
-    SCI_BRR(n)  = (uint8_t)((SCI_PCLK_HZ + (divisor / 2U)) / divisor - 1U);
+
+#if (OS_DEBUG_UART_BRR_DIVISOR == 4U)
+    SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* /4 mode */
+    divisor = 4UL * baudrate;
+#elif (OS_DEBUG_UART_BRR_DIVISOR == 8U)
+    SCI_SEMR(n) = (uint8_t)(SEMR_BGDM);                        /* /8 mode */
+    divisor = 8UL * baudrate;
+#else
+#error "OS_DEBUG_UART_BRR_DIVISOR must be 4U or 8U"
+#endif
+
+    uint32_t pclk = SCI_PCLK_HZ;  /* Get actual PCLK (may be 48MHz if fallback occurred) */
+    SCI_BRR(n)  = (uint8_t)((pclk + (divisor / 2U)) / divisor - 1U);
 
     /* BRR settling wait — RA6M5 §30.2.20: BRR must be written with TE=RE=0,
      * and the baud rate generator needs at least 1 bit period to settle before

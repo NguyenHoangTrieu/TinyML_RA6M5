@@ -2,7 +2,7 @@
 <raConfiguration version="3">
   <generalSettings>
     <option key="#pinconfiguration#" value="R7FA6M5BH3CFC.pincfg"/>
-    <option key="#Board#" value="board.ra6m5ek"/>
+    <option key="#Board#" value="board.ra6m5ck"/>
     <option key="CPU" value="RA6M5"/>
     <option key="Core" value="CM33"/>
     <option key="#TargetName#" value="R7FA6M5BH3CFC"/>
@@ -10,7 +10,7 @@
     <option key="#DeviceCommand#" value="R7FA6M5BH"/>
     <option key="#RTOS#" value="_none"/>
     <option key="#FSPVersion#" value="6.4.0"/>
-    <option key="#ConfigurationFragments#" value="Renesas##BSP##Board##ra6m5_ek##"/>
+    <option key="#ConfigurationFragments#" value="Renesas##BSP##Board##ra6m5_ck##"/>
     <option key="#SELECTED_TOOLCHAIN#" value="clang_arm"/>
     <option key="#ToolchainVersion#" value="21.1.1"/>
   </generalSettings>
@@ -217,9 +217,9 @@
       <description>Arm CMSIS Version 6 - Core (M)</description>
       <originalPack>Arm.CMSIS6.6.1.0+fsp.6.4.0.pack</originalPack>
     </component>
-    <component apiversion="" class="BSP" condition="" group="Board" subgroup="ra6m5_ek" variant="" vendor="Renesas" version="6.4.0">
-      <description>RA6M5-EK Board Support Files</description>
-      <originalPack>Renesas.RA_board_ra6m5_ek.6.4.0.pack</originalPack>
+    <component apiversion="" class="BSP" condition="" group="Board" subgroup="ra6m5_ck" variant="" vendor="Renesas" version="6.4.0">
+      <description>RA6M5-CK Board Support Files</description>
+      <originalPack>Renesas.RA_board_ra6m5_ck.6.4.0.pack</originalPack>
     </component>
     <component apiversion="" class="BSP" condition="" group="ra6m5" subgroup="device" variant="R7FA6M5BH3CFC" vendor="Renesas" version="6.4.0">
       <description>Board support package for R7FA6M5BH3CFC</description>

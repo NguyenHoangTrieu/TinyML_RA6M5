@@ -32,11 +32,11 @@
  *                   (unsigned)data.raw_len);
  *   }
  *
- * Hardware connections (EK-RA6M5, I2C0 — J8 connector):
- *   SCL → P501  (J8-1)
- *   SDA → P500  (J8-2)
- *   INT → P511  (optional, not used in basic polling mode)
- *   RES_N → P512 (optional, for hard reset)
+ * Hardware connections (CK-RA6M5, onboard ZMOD4410):
+ *   SCL   → P400
+ *   SDA   → P401
+ *   INT   → P402 (optional, not used in basic polling mode)
+ *   RES_N → P307 (active-low hard reset control)
  *   External pull-up resistors (4.7 kΩ to 3.3 V) required on SCL and SDA.
  */
 
@@ -125,6 +125,13 @@ typedef struct {
  * @return                 ZMOD4410_OK on success; error code on failure
  */
 ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode);
+
+/**
+ * ZMOD4410_HardReset — toggle RESET_N (P307) low/high to reset sensor.
+ *
+ * @return      ZMOD4410_OK on success
+ */
+ZMOD4410_Status_t ZMOD4410_HardReset(void);
 
 /**
  * ZMOD4410_Trigger_Measurement — start a sensor measurement.

@@ -5,12 +5,13 @@
  * O(1) bitmap scheduler, per-priority round-robin, tick-based blocking,
  * semaphore timeout integration, and software timer tick dispatch.
  *
- * Target: RA6M5 (Cortex-M33), ICLK = 200 MHz, 1 ms tick.
+ * Target: RA6M5 (Cortex-M33), ICLK = 200 MHz (or 48 MHz fallback), 1 ms tick.
  */
 
 #include "kernel.h"
 #include "semaphore.h"
 #include "software_timer.h"
+#include "drv_clk.h"
 #include <string.h>
 
 /* ======================================================================
@@ -224,13 +225,17 @@ int32_t OS_Task_Create(OS_TCB_t *tcb, void (*entry)(void *), void *arg,
 
 void OS_Start(void) {
   uint32_t highest_prio;
+  uint32_t actual_iclk = CLK_GetActualICLK();  /* Get actual ICLK (200 MHz or 48 MHz fallback) */
+  uint32_t systick_reload = (actual_iclk / OS_TICK_RATE_HZ) - 1UL;  /* Calculate reload for actual ICLK */
 
   /* PendSV + SysTick → lowest NVIC priority (0xFF).
    * Context switches never preempt application ISRs. */
   SCB_SHPR3 = 0xFFFF0000UL;
 
-  /* SysTick: 1 ms at 200 MHz.  RVR=199999, processor clock, enable. */
-  SYST_RVR = OS_SYSTICK_RELOAD;
+  /* SysTick: dynamically calculated based on actual ICLK.
+   * For 200 MHz: reload = 199999 (1 ms)
+   * For 48 MHz:  reload = 47999  (1 ms) */
+  SYST_RVR = systick_reload;
   SYST_CVR = 0U;
   SYST_CSR = SYST_CSR_ENABLE | SYST_CSR_TICKINT | SYST_CSR_CLKSOURCE;
 

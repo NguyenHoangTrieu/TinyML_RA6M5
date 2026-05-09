@@ -17,7 +17,7 @@
  *   HOST_DESCRIPTOR  : One-shot host enumeration test logs SIM descriptors
  */
 #ifndef OS_USB_TEST_MODE
-#define OS_USB_TEST_MODE                  OS_USB_TEST_MODE_DEVICE_CDC
+#define OS_USB_TEST_MODE                  OS_USB_TEST_MODE_NONE
 #endif
 
 /*

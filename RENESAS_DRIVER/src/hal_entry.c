@@ -1,14 +1,15 @@
 ﻿/*
  * hal_entry.c  --  Application entry for TESTING_2 bare-metal RA6M5 project.
  *
- * Board: EK-RA6M5 (R7FA6M5BH3CFC, LQFP176)
+ * Board: CK-RA6M5 (R7FA6M5BH3CFC, LQFP176)
  *
- * LED assignments (ra/board/ra6m5_ek/board_leds.c, confirmed):
- *   LED1 Blue  -- P006  (Port 0, Pin 6)
- *   LED2 Green -- P007  (Port 0, Pin 7)
- *   LED3 Red   -- P008  (Port 0, Pin 8)
+ * LED assignments (CK-RA6M5):
+ *   LED1 Red   -- P610  (Port 6, Pin 10)
+ *   LED2 Green -- P603  (Port 6, Pin 3)
+ *   LED3 Green -- P609  (Port 6, Pin 9)
  *
- * LEDs on EK-RA6M5 are active-LOW (driving pin LOW = LED ON).
+ * LEDs on CK-RA6M5 are active-HIGH (driving pin HIGH = LED ON).
+ * UART: SCI3 via Arduino UNO connector D0/D1 (P706 RX / P707 TX) @ 115200 baud
  *
  * This file:
  *   1. Configures LED1 as GPIO push-pull output
@@ -27,10 +28,10 @@
 
 
 /* -----------------------------------------------------------------
- * LED pin definitions  (Port 0, Pin 6 = P006 = LED1 Blue)
+ * LED pin definitions  (Port 6, Pin 10 = P610 = LED1 Red on CK-RA6M5)
  * ----------------------------------------------------------------- */
-#define LED1_PORT   GPIO_PORT0
-#define LED1_PIN    6U
+#define LED1_PORT   GPIO_PORT6
+#define LED1_PIN    10U
 
 /* Ghi đè hàm _sbrk để Linker không đòi symbol 'end' từ file .ld nữa */
 #ifdef __cplusplus
@@ -50,11 +51,11 @@ caddr_t _sbrk(int incr) {
  * ----------------------------------------------------------------- */
 void hal_entry(void)
 {
-    /* Configure LED1 (P006) as GPIO push-pull output */
+    /* Configure LED1 (P610) as GPIO push-pull output */
     GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
 
-    /* Drive LED OFF initially (active-low: HIGH = OFF) */
-    GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET);
+    /* CK LEDs are active-high: LOW = OFF, HIGH = ON */
+    GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_RESET);
 
     /* Run driver test suite (only IAQ and RTOS tests enabled) */
     test_iaq_register();
@@ -67,9 +68,9 @@ void hal_entry(void)
 
     while (1)
     {
-        GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_RESET); /* LED ON  */
+        GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET);   /* LED ON  */
         delay_ms(half_period_ms);
-        GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET);   /* LED OFF */
+        GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_RESET); /* LED OFF */
         delay_ms(half_period_ms);
     }
 }

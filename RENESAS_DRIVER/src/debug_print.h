@@ -12,6 +12,7 @@
  *
  * Usage:
  *   debug_print_init();                       // call once before use
+ *   if (debug_print_backend_ready() == 0) { ... }
  *   debug_print("val=%d, str=%s\r\n", 42, "ok");
  *
  * UART backend prefixes each message with "[<tick> ms] ".
@@ -27,8 +28,7 @@
 
 /**
  * OS_DEBUG_BACKEND_USB_CDC — route debug_print() to the USB FS CDC BULK IN
- * pipe instead of the UART.  USB must already be initialised by runtime
- * startup flow (USB_Init + usb_svc task) before the first debug_print() call.
+ * pipe instead of the UART.
  *
  *   0 = disabled (default — UART SCI backend active)
  *   1 = USB CDC fire-and-forget log path
@@ -50,18 +50,21 @@
     /* Requires: --specs=rdimon.specs in linker flags.                       */
     #include <stdio.h>
     static inline void debug_print_init(void) { /* nothing needed */ }
+    static inline unsigned char debug_print_backend_ready(void) { return 1U; }
     #define debug_print(fmt, ...)  printf(fmt, ##__VA_ARGS__)
 
   #elif OS_DEBUG_BACKEND_USB_CDC
     /* --- USB CDC backend ----------------------------------------------- */
-    /* Fire-and-forget BULK IN send; USB must be init'd before first call.  */
-    static inline void debug_print_init(void) { /* USB init done elsewhere */ }
+    /* debug_print_init() owns USB bring-up + host-open wait before main continues. */
+    void debug_print_init(void);
+    unsigned char debug_print_backend_ready(void);
     void debug_print(const char *fmt, ...);
 
   #else
     /* --- UART backend (default) ----------------------------------------- */
     /* Bare-metal SCI transmit; no heap, no stdio dependency.                */
     void debug_print_init(void);
+    unsigned char debug_print_backend_ready(void);
     void debug_print(const char *fmt, ...);
 
   #endif /* OS_DEBUG_BACKEND_SEMIHOST / OS_DEBUG_BACKEND_USB_CDC */
@@ -69,6 +72,7 @@
 #else  /* OS_DEBUG_ENABLE == 0 -------------------------------------------- */
   /* Strip everything: zero code, zero data, no warnings about unused args. */
   static inline void debug_print_init(void) { }
+  static inline unsigned char debug_print_backend_ready(void) { return 1U; }
   #define debug_print(fmt, ...)  do { } while (0)
 
 #endif /* OS_DEBUG_ENABLE */

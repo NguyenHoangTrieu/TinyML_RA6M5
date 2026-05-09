@@ -8,12 +8,12 @@
  * Replaces: SCI.h
  *
  * Register access uses SCI_REG8(n, offset) where n = channel (0–9).
- * RA6M5 SCI channels are clocked from PCLKA.
- * With the current PLL clock tree, PCLKA = 100 MHz.
+ * In this project, SCI BRR is derived from the PCLKB domain.
+ * With the current PLL clock tree, PCLKB = 50 MHz.
  *
- * BRR formula (SEMR: BGDM=1 bit6, ABCS=1 bit4 → divisor coefficient = 8):
- *   BRR = SCI_PCLK_HZ / (8 × baudrate) − 1
- *   Example: 100 MHz / (8 × 115200) − 1 ≈ 107 → close to nominal 115200 baud
+ * BRR formula (SEMR: BGDM=1 bit6, ABCS=1 bit4 → divisor coefficient = 4):
+ *   BRR = SCI_PCLK_HZ / (4 × baudrate) − 1
+ *   Example: 50 MHz / (4 × 115200) − 1 ≈ 107 → close to nominal 115200 baud
  */
 
 /* -----------------------------------------------------------------------
@@ -63,10 +63,13 @@
 #define SEMR_ABCS (1U << 4)
 
 /* -----------------------------------------------------------------------
- * SCI peripheral clock — on RA6M5 SCI is sourced from PCLKA.
- * CLK_Init() configures PCLKA = 100 MHz (/2 from 200 MHz PLL).
+ * SCI peripheral clock used by this driver — PCLKB domain in this project.
+ * Normally CLK_Init() configures PCLKB = 50 MHz (/4 from 200 MHz PLL).
+ * If clock fallback to HOCO occurs, PCLKB = 48 MHz (/1 from HOCO).
+ * Use the dynamic global g_actual_pclk_hz set by CLK_Init().
  * ----------------------------------------------------------------------- */
-#define SCI_PCLK_HZ  100000000UL
+extern uint32_t g_actual_pclk_hz;
+#define SCI_PCLK_HZ  (g_actual_pclk_hz)
 
 /* -----------------------------------------------------------------------
  * UART channel enumeration

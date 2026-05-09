@@ -20,6 +20,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
+static uint8_t s_dbg_backend_ready = 0U;
+
 /* Channel used for all output (value from rtos_config.h). */
 #define DBG_CH  ((UART_t)OS_DEBUG_UART_CHANNEL)
 
@@ -86,6 +88,12 @@ static void dbg_put_timestamp(void)
 void debug_print_init(void)
 {
     UART_Init(DBG_CH, OS_DEBUG_UART_BAUDRATE);
+    s_dbg_backend_ready = (SCI_SSR(OS_DEBUG_UART_CHANNEL) & SSR_TDRE) ? 1U : 0U;
+}
+
+uint8_t debug_print_backend_ready(void)
+{
+    return s_dbg_backend_ready;
 }
 
 /**
@@ -183,6 +191,44 @@ done:
 #include <stdarg.h>
 #include <stdio.h>
 
+static uint8_t s_dbg_backend_ready = 0U;
+#define DBG_USB_HOST_READY_TIMEOUT_MS 3000U
+
+static void debug_delay_ms_bm(uint32_t ms)
+{
+    volatile uint32_t n = ms * 100000U;
+    while (n-- != 0U)
+    {
+        __asm volatile("nop");
+    }
+}
+
+void debug_print_init(void)
+{
+    uint32_t waited_ms = 0U;
+
+    if (USB_Init(USB_MODE_DEVICE_CDC) != DRV_OK)
+    {
+        s_dbg_backend_ready = 0U;
+        return;
+    }
+
+    while ((USB_Dev_IsHostReady() == 0U) && (waited_ms < DBG_USB_HOST_READY_TIMEOUT_MS))
+    {
+        USB_PollEvents();
+        debug_delay_ms_bm(1U);
+        waited_ms++;
+    }
+
+    /* Do not block forever when host is not connected yet. */
+    s_dbg_backend_ready = (USB_Dev_IsHostReady() != 0U) ? 1U : 0U;
+}
+
+uint8_t debug_print_backend_ready(void)
+{
+    return s_dbg_backend_ready;
+}
+
 static volatile uint8_t s_usb_dbg_lock = 0U;
 
 static uint8_t usb_dbg_try_lock(void)
@@ -224,6 +270,16 @@ void debug_print(const char *fmt, ...)
     if (fmt == NULL)
     {
         return;
+    }
+
+    if (s_dbg_backend_ready == 0U)
+    {
+        USB_PollEvents();
+        if (USB_Dev_IsHostReady() == 0U)
+        {
+            return;
+        }
+        s_dbg_backend_ready = 1U;
     }
 
     if (usb_dbg_try_lock() == 0U)

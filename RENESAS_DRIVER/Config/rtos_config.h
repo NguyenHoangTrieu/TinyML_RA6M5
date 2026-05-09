@@ -95,22 +95,24 @@
  *   OS_DEBUG_BACKEND_SEMIHOST : ARM semihosting via JTAG/SWD debugger
  *                               (requires --specs=rdimon.specs at link time)
  */
-#define OS_DEBUG_BACKEND_UART       0
+#define OS_DEBUG_BACKEND_UART       1
 #define OS_DEBUG_BACKEND_SEMIHOST   0
-#define OS_DEBUG_BACKEND_USB_CDC    1
-
-/* Set to 1 to run the stand-alone USB CDC test task (UART backend only).
- * Useful to validate USB CDC independently while log output flows over UART.
- * Must be 0 when OS_DEBUG_BACKEND_USB_CDC=1 (USB owned by debug backend). */
-#define OS_USB_CDC_TEST_ENABLE      0
+#define OS_DEBUG_BACKEND_USB_CDC    0
 
 /**
  * SCI channel used for UART output (0–9).
- * UART7 (SCI7): TX=P613, RX=P614, PSEL=0x05 — connect external USB-UART adapter.
+ * UART3 (SCI3): RX=P706 (D0), TX=P707 (D1), PSEL=0x05 — Arduino UNO pins on CK-RA6M5.
  */
-#define OS_DEBUG_UART_CHANNEL       7U
+#define OS_DEBUG_UART_CHANNEL       3U
 
 /** Baud rate for the debug UART channel. */
 #define OS_DEBUG_UART_BAUDRATE      115200UL
+
+/**
+ * UART BRR divisor mode for bring-up tuning.
+ * 4U: SEMR BGDM=1 + ABCS=1  (effective /4)
+ * 8U: SEMR BGDM=1 + ABCS=0  (effective /8)
+ */
+#define OS_DEBUG_UART_BRR_DIVISOR   8U
 
 #endif /* RTOS_CONFIG_H */

@@ -142,6 +142,24 @@ typedef enum {
  */
 void CLK_Init(void);
 
+/**
+ * @brief Return 1 if system fell back to HOCO due to PLL/MOSC timeout, 0 if on production clock.
+ * Useful for debug diagnostics to understand actual system speed.
+ */
+uint8_t CLK_GetFallbackOccurred(void);
+
+/**
+ * @brief Return the actual ICLK frequency (200 MHz production, 48 MHz fallback).
+ * Used by kernel SysTick initialization to calculate correct reload value.
+ */
+uint32_t CLK_GetActualICLK(void);
+
+/**
+ * @brief Return the actual SCI/UART clock used for BRR calculation.
+ * In this project SCI is configured from the PCLKB domain (50 MHz production, 48 MHz fallback).
+ */
+uint32_t CLK_GetActualSCIClock(void);
+
 /*
  * CLK_ModuleStart_SCI — release module stop for one SCI channel.
  * Replaces LPM_Unlock(). Wraps MSTPCRB write with PRCR unlock/lock.
