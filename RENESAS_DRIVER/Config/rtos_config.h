@@ -95,9 +95,9 @@
  *   OS_DEBUG_BACKEND_SEMIHOST : ARM semihosting via JTAG/SWD debugger
  *                               (requires --specs=rdimon.specs at link time)
  */
-#define OS_DEBUG_BACKEND_UART       0
+#define OS_DEBUG_BACKEND_UART       1
 #define OS_DEBUG_BACKEND_SEMIHOST   0
-#define OS_DEBUG_BACKEND_USB_CDC    1
+#define OS_DEBUG_BACKEND_USB_CDC    0
 
 /* Set to 1 to run the stand-alone USB CDC test task (UART backend only).
  * Useful to validate USB CDC independently while log output flows over UART.
