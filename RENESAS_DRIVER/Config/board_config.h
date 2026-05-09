@@ -13,6 +13,7 @@
 #define BOARD_CONFIG_H
 
 #include <stdint.h>
+#include "GPIO.h"
 
 /* -----------------------------------------------------------------------
  * SELECT TARGET BOARD HERE
@@ -39,11 +40,11 @@
   #define DEBUG_UART_PSEL       0x05U
   
   /* LED assignments (active-HIGH) */
-  #define LED1_PORT  6
+  #define LED1_PORT  GPIO_PORT6
   #define LED1_PIN   10  /* P610 Red    */
-  #define LED2_PORT  6
+  #define LED2_PORT  GPIO_PORT6
   #define LED2_PIN   3   /* P603 Green  */
-  #define LED3_PORT  6
+  #define LED3_PORT  GPIO_PORT6
   #define LED3_PIN   9   /* P609 Green  */
   
   /* Sensor configuration: REAL sensors */
@@ -64,11 +65,11 @@
   #define DEBUG_UART_PSEL       0x05U
   
   /* LED assignments (active-HIGH) */
-  #define LED1_PORT  0
+  #define LED1_PORT  GPIO_PORT0
   #define LED1_PIN   6   /* P006 */
-  #define LED2_PORT  0
+  #define LED2_PORT  GPIO_PORT0
   #define LED2_PIN   7   /* P007 */
-  #define LED3_PORT  0
+  #define LED3_PORT  GPIO_PORT0
   #define LED3_PIN   8   /* P008 */
   
   /* Sensor configuration: SIMULATOR (no physical sensors on EK) */
