@@ -1,6 +1,6 @@
 # FW_USB_Driver
 
-Tags: #bug-fixed-pending-test #firmware #usb #cdc #host #device
+Tags: #firmware #usb #cdc #host #device
 
 Dual-mode USBFS firmware driver for RA6M5.
 
@@ -33,7 +33,7 @@ Hardware dependency: [[HW_RA6M5_USBFS]]
 - Bulk IN log stream using:
   - `USB_Dev_Write(...)`
   - `USB_Dev_Printf(...)`
-  - `USB_Dev_IsHostReady(...)` to avoid sending test/log data before the host has actually started CDC class negotiation, and to stop quickly again after an explicit close or a stalled BULK IN transfer
+  - `USB_Dev_IsHostReady(...)` — gate TX on host CDC open; cleared on explicit CDC close or stalled BULK IN
 - Event path supports polling and IRQ hook:
   - `USB_PollEvents()`
   - `USBI0_IRQHandler()`, `USBI1_IRQHandler()`
@@ -118,6 +118,13 @@ Device-side pipe layout:
 - PIPE2 = CDC data BULK OUT (EP2 OUT)
 - PIPE6 = CDC notification INT IN (EP3 IN)
 
+**PIPE1 / PIPE2 buffer mode: single-buffer (DBLB=0)**
+Double-buffer mode (DBLB=1) causes bank-pointer desync when packets are sent
+at low frequency (>100 ms gap).  The CPU-side CFIFO bank counter and the
+hardware TX bank counter diverge between calls, causing hardware to re-transmit
+the previous packet from the stale bank.  Single-buffer mode is correct for
+debug logging usage. See BUG-USB-05.
+
 Host-readiness note:
 - `SET_CONFIGURATION` marks the device configured
 - the driver separately latches host-side CDC activity on valid class requests (`GET/SET_LINE_CODING`, `SET_CONTROL_LINE_STATE`, `SEND_BREAK`)
@@ -162,41 +169,40 @@ Recommended debug probes:
 
 Integration point: `src/main.c`
 
-Build-time selector in `src/test/app_test_config.h`:
-- `OS_USB_TEST_MODE_NONE`
-- `OS_USB_TEST_MODE_DEVICE_CDC`
-- `OS_USB_TEST_MODE_HOST_DESCRIPTOR`
-
-Important constraint:
-- USBFS is single-role at runtime, so Device CDC test and Host descriptor test are alternate modes, not simultaneous modes.
-
 Provided test hooks:
 - `test_usb_cdc_logger_init()`
   - Creates one RTOS task
   - Polls USB events every 1 ms to service control/data state changes promptly
-  - Runs at higher priority than the background synthetic-AI test task to reduce CDC open latency in polling mode
+  - Only enabled when `OS_USB_CDC_TEST_ENABLE=1` (UART backend only)
   - Sends periodic CDC log frames only after `USB_Dev_IsHostReady()` becomes true
-  - suppresses verbose post-enumeration USB trace chatter by default so CDC ACM open negotiation is not slowed by blocking UART debug output
+  - When USB CDC is used as debug backend (`OS_DEBUG_BACKEND_USB_CDC=1`), this task must be disabled — USB is owned by `usb_svc` in main.c
 - `test_usb_host_descriptor_init()`
   - Creates one one-shot enumeration task in host mode
   - Enumerates attached CDC-ACM device / SIM module
   - Logs Device Descriptor summary and parsed BULK endpoints over `debug_print`
 
-Current ownership of the USB test selector:
-- `OS_USB_TEST_MODE_*` macros live in `src/test/app_test_config.h`
-- `src/main.c` currently leaves USB test tasks disabled in normal runtime flow
-
 ---
 
 ## 2026-05-08 Update
 
-- USB CDC log path is now used as the production debug backend (`debug_print` over USB CDC), not only as a test task.
-- `src/main.c` no longer starts `test_usb_cdc_logger_init()` for normal logging; instead it:
-  - calls `USB_Init(USB_MODE_DEVICE_CDC)` at startup when USB debug backend is enabled,
-  - starts a lightweight `usb_svc` task that calls `USB_PollEvents()` every 1 ms.
-- Fire-and-forget CDC TX (`USB_Dev_Write_Log`) was hardened to recover PIPE1 state before each packet and abort/recover on FIFO timeout.
-- This avoids the previous failure mode where a transient timeout wedged subsequent USB CDC logs.
+## 2026-05-09 Update
 
+### USB CDC as production debug backend
+- `OS_DEBUG_BACKEND_USB_CDC=1` routes all `debug_print()` calls through the USB
+  CDC BULK IN pipe using `USB_Dev_Write` (blocking, waits for BEMP).
+- `OS_DEBUG_BACKEND_UART` and `OS_USB_CDC_TEST_ENABLE` must both be 0 when this
+  is active — USB ownership belongs to `usb_svc` task created in `main.c`.
+- `main.c` calls `USB_Init(USB_MODE_DEVICE_CDC)` before the RTOS starts, then
+  creates a `usb_svc` task (priority 2) that calls `USB_PollEvents()` every 1 ms.
+- `usb_device_wait_bulk_in_complete()` also calls `USB_PollEvents()` internally
+  every `USB_CDC_DEV_TX_POLL_STRIDE` ticks, so BEMP can fire even if `usb_svc`
+  is preempted during a blocking write.
+
+### Fire-and-forget TX path removed
+- `USB_Dev_Write_Log` and `USB_Dev_Printf_Log` deleted from driver and header.
+- Fire-and-forget: no BEMP wait, 64-byte truncation, no host-ready check → root
+  cause of silent packet drops and seq repetition under low-frequency traffic.
+- Callers that need non-blocking TX have no use case in this codebase.
 ---
 
 ## Flow Map (FW Perspective)
@@ -248,6 +254,77 @@ state when the host sent `GET_DESCRIPTOR`. See [[RCA_USB_CDC_NoEnumeration]].
 - gated CDC test traffic on `USB_Dev_IsHostReady()` instead of only `USB_Dev_IsConfigured()`
 - limited device-mode CDC BULK IN completion waits to a short fail-fast window and clear the pending pipe state on timeout so disconnect/close recovery happens in under a second instead of tens of seconds
 - drop the latched host-ready state immediately on explicit CDC close (`SET_CONTROL_LINE_STATE = 0`) and on stalled writes so the logger stops retrying against a closed port
+
+**Status:** Fixed and hardware-verified.
+
+---
+
+### BUG-USB-03: ZLP on EP0 / SET_CONFIGURATION dropped on reconnect (FIXED)
+
+**Symptom:** On second connect (unplug + replug without board reset), `configured=1`
+never fires.  UART shows DVST events loop but no `SW_CONFIGURED` state.
+
+**Root Cause:** `USB_PollEvents()` DVST and BEMP interrupt bits were set
+simultaneously in `INTSTS0`.  The DVST handler called `continue`, so the loop
+restarted with the same `is0` snapshot.  The BEMP for EP0 was processed in the
+next pass but the gap left FIFO empty with `PID=BUF`, causing hardware to
+auto-send a ZLP.  The host interpreted this as the status stage completing
+before the CPU had loaded the descriptor response, aborting the control transfer.
+
+**Fix applied in `drv_usb.c`:**
+- BEMP handler for pipe 0: immediately set `PID=NAK` before clearing BEMPSTS
+  and before refilling the FIFO, preventing the ZLP window.
+
+**Status:** Fixed and hardware-verified.
+
+---
+
+### BUG-USB-04: Stuck enumeration on reconnect — host gives up, device stays attached (FIXED)
+
+**Symptom:** After the host abandons enumeration (COM port unplug before
+`SET_CONFIGURATION`), the device stays attached with `configured=0`.  The host
+never re-enumerates on the next open attempt.
+
+**Root Cause:** When the host gives up during enumeration, it puts the bus into
+SUSPEND state.  The device remained with `DPRPU` asserted and no way to force
+a fresh attachment cycle.
+
+**Fix applied in `drv_usb.c`:**
+- Added `g_usb_enum_suspend_count` counter in `usb_device_update_pullup()`.
+- If `DVSQ` bit 6 (SUSPEND) is set while `configured==0` for 200 consecutive
+  polls (~200 ms), call `usb_device_force_detach()` to pull DPRPU low.
+- VBUS absent debounce (`g_usb_vbus_absent_count`, 50 ms) prevents false detach
+  during normal enumeration.
+
+**Status:** Fixed and hardware-verified.
+
+---
+
+### BUG-USB-05: BULK IN seq repeated — DBLB double-buffer bank desync (FIXED)
+
+**Symptom:** USB terminal shows `seq=1 tick=5526` repeated indefinitely.  UART
+log shows `TX OK seq=2`, `TX OK seq=3`, etc. — confirming the host receives the
+old data while the driver thinks transmit succeeded.
+
+**Root Cause:** PIPE1 was configured with `DBLB=1` (double-buffer mode).
+Hardware maintains two physical FIFO banks (B0, B1) with its own TX bank
+counter.  Between `USB_Dev_Write` calls spaced 1 second apart, the hardware TX
+bank counter and the CPU-side CFIFO access bank diverge: CPU writes seq=N+1 to
+B1 but hardware retransmits seq=N from B0.  An ACLRM workaround (reset both
+banks) partially helped (fixed alternating ERR/OK) but could not fully prevent
+the desync because the CFIFO access bank pointer is not reset by ACLRM.
+
+**Root cause conclusion:** DBLB is designed for continuous streaming where one
+bank fills while the other transmits.  For debug logging with >100 ms between
+packets, DBLB is fundamentally incompatible.
+
+**Fix applied in `drv_usb.c`:**
+- Removed `USB_PIPECFG_DBLB` from PIPE1 and PIPE2 PIPECFG in both `USB_Init()`
+  and the re-attach pipe reinit inside `usb_device_update_pullup()`.
+- Removed the ACLRM workaround comment from `USB_Dev_Write` preamble (ACLRM
+  call retained as general FIFO cleanup, comment updated).
+
+**Status:** Fixed, build verified. Flash and hardware validation pending.
 - suppressed verbose post-enumeration USB trace chatter by default, keeping only error/stall visibility during normal open/close flows
 
 **Status:** Applied. Re-test expected to show significantly faster COM open behavior.

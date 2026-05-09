@@ -285,10 +285,6 @@ static void task_usb_cdc_logger(void *arg)
 
         if ((host_ready != 0U) && (elapsed_ms >= USB_CDC_LOG_PERIOD_MS))
         {
-            /* Use blocking USB_Dev_Printf (waits for BEMP, checks host-ready)
-             * so that each packet is fully transmitted before seq advances.
-             * USB_Dev_Printf_Log was fire-and-forget and could silently drop
-             * packets when the host did not issue IN tokens in time. */
             drv_status_t st = USB_Dev_Printf(
                 "[USB CDC TEST] seq=%u tick=%u host-ready\r\n",
                 (unsigned)seq,

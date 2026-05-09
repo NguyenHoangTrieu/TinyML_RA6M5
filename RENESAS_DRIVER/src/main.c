@@ -203,8 +203,8 @@ int main(void) {
 
 #if OS_USB_CDC_TEST_ENABLE
   /* test_usb_cdc_logger: calls USB_Init + USB_PollEvents internally.
-   * Prints all USB trace events via UART (OS_DEBUG_BACKEND_UART=1)
-   * and sends periodic test messages via USB_Dev_Printf_Log. */
+   * Drains USB trace ring buffer to UART and sends periodic test
+   * messages via USB_Dev_Printf (blocking, waits for BEMP). */
   test_usb_cdc_logger_init();
 #endif
 
