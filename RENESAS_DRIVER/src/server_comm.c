@@ -21,11 +21,6 @@
 #define IAQ_STARTUP_POLL_MS         10U
 #define IAQ_CYCLE_DELAY_MS        5000U
 
-#define SERVER_COMM_FRAME_STX     0xA5U
-#define SERVER_COMM_FRAME_ETX     0x5AU
-#define SERVER_COMM_FRAME_RAW     0x10U
-#define SERVER_COMM_FRAME_IAQ     0x11U
-
 typedef struct {
     int32_t tvoc_x10;
     int32_t eco2_x10;
@@ -51,55 +46,13 @@ static int32_t server_comm_round_to_i32(float val)
     return (int32_t)(val - 0.5f);
 }
 
-static uint16_t server_comm_crc16(const uint8_t *data, uint16_t len)
+static void server_comm_uart_init(void)
 {
-    uint16_t crc = 0xFFFFU;
-    uint16_t i;
-
-    if (data == (const uint8_t *)0)
-    {
-        return 0U;
-    }
-
-    for (i = 0U; i < len; i++)
-    {
-        uint8_t bit;
-        crc ^= (uint16_t)((uint16_t)data[i] << 8U);
-
-        for (bit = 0U; bit < 8U; bit++)
-        {
-            if ((crc & 0x8000U) != 0U)
-            {
-                crc = (uint16_t)((uint16_t)(crc << 1U) ^ 0x1021U);
-            }
-            else
-            {
-                crc = (uint16_t)(crc << 1U);
-            }
-        }
-    }
-
-    return crc;
-}
-
-static uint16_t server_comm_crc16_update(uint16_t crc, uint8_t byte)
-{
-    uint8_t bit;
-
-    crc ^= (uint16_t)((uint16_t)byte << 8U);
-    for (bit = 0U; bit < 8U; bit++)
-    {
-        if ((crc & 0x8000U) != 0U)
-        {
-            crc = (uint16_t)((uint16_t)(crc << 1U) ^ 0x1021U);
-        }
-        else
-        {
-            crc = (uint16_t)(crc << 1U);
-        }
-    }
-
-    return crc;
+#if OS_DEBUG_BACKEND_USB_CDC
+    /* debug_print() uses USB CDC in this build, so the SCI channel used for
+     * Arduino must be brought up explicitly here. */
+    UART_Init((UART_t)OS_DEBUG_UART_CHANNEL, OS_DEBUG_UART_BAUDRATE);
+#endif
 }
 
 static void server_comm_send_u8(uint8_t b)
@@ -107,70 +60,106 @@ static void server_comm_send_u8(uint8_t b)
     UART_SendChar((UART_t)OS_DEBUG_UART_CHANNEL, (char)b);
 }
 
-static void server_comm_send_frame(uint8_t type, const uint8_t *payload, uint16_t payload_len)
+static void server_comm_send_cstr(const char *text)
 {
-    uint16_t crc = 0xFFFFU;
-    uint16_t i;
-
-    crc = server_comm_crc16_update(crc, type);
-    crc = server_comm_crc16_update(crc, (uint8_t)((payload_len >> 8U) & 0xFFU));
-    crc = server_comm_crc16_update(crc, (uint8_t)(payload_len & 0xFFU));
-    for (i = 0U; i < payload_len; i++)
-    {
-        crc = server_comm_crc16_update(crc, payload[i]);
-    }
-
-    server_comm_send_u8(SERVER_COMM_FRAME_STX);
-    server_comm_send_u8(type);
-    server_comm_send_u8((uint8_t)((payload_len >> 8U) & 0xFFU));
-    server_comm_send_u8((uint8_t)(payload_len & 0xFFU));
-
-    for (i = 0U; i < payload_len; i++)
-    {
-        server_comm_send_u8(payload[i]);
-    }
-
-    server_comm_send_u8((uint8_t)((crc >> 8U) & 0xFFU));
-    server_comm_send_u8((uint8_t)(crc & 0xFFU));
-    server_comm_send_u8(SERVER_COMM_FRAME_ETX);
-}
-
-static void server_comm_send_raw(int32_t tvoc_x10, int32_t eco2_x10)
-{
-    uint8_t payload[8];
-
-    payload[0] = (uint8_t)((tvoc_x10 >> 24U) & 0xFFU);
-    payload[1] = (uint8_t)((tvoc_x10 >> 16U) & 0xFFU);
-    payload[2] = (uint8_t)((tvoc_x10 >> 8U) & 0xFFU);
-    payload[3] = (uint8_t)(tvoc_x10 & 0xFFU);
-
-    payload[4] = (uint8_t)((eco2_x10 >> 24U) & 0xFFU);
-    payload[5] = (uint8_t)((eco2_x10 >> 16U) & 0xFFU);
-    payload[6] = (uint8_t)((eco2_x10 >> 8U) & 0xFFU);
-    payload[7] = (uint8_t)(eco2_x10 & 0xFFU);
-
-    server_comm_send_frame(SERVER_COMM_FRAME_RAW, payload, (uint16_t)sizeof(payload));
-}
-
-static void server_comm_send_iaq(int32_t iaq_x100)
-{
-    uint8_t payload[4];
-    uint16_t crc_a;
-    uint16_t crc_b;
-
-    payload[0] = (uint8_t)((iaq_x100 >> 24U) & 0xFFU);
-    payload[1] = (uint8_t)((iaq_x100 >> 16U) & 0xFFU);
-    payload[2] = (uint8_t)((iaq_x100 >> 8U) & 0xFFU);
-    payload[3] = (uint8_t)(iaq_x100 & 0xFFU);
-
-    crc_a = server_comm_crc16(payload, (uint16_t)sizeof(payload));
-    crc_b = crc16_ccitt(payload, (uint32_t)sizeof(payload));
-    if (crc_a != crc_b)
+    if (text == (const char *)0)
     {
         return;
     }
 
-    server_comm_send_frame(SERVER_COMM_FRAME_IAQ, payload, (uint16_t)sizeof(payload));
+    while (*text != '\0')
+    {
+        server_comm_send_u8((uint8_t)*text++);
+    }
+}
+
+static void server_comm_send_u32(uint32_t value)
+{
+    char digits[10];
+    uint8_t idx = 0U;
+
+    if (value == 0U)
+    {
+        server_comm_send_u8((uint8_t)'0');
+        return;
+    }
+
+    while ((value > 0U) && (idx < (uint8_t)sizeof(digits)))
+    {
+        digits[idx++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+
+    while (idx > 0U)
+    {
+        server_comm_send_u8((uint8_t)digits[--idx]);
+    }
+}
+
+static uint32_t server_comm_abs_i32(int32_t value)
+{
+    if (value < 0)
+    {
+        return (uint32_t)(-value);
+    }
+
+    return (uint32_t)value;
+}
+
+static void server_comm_send_fixed_1(int32_t value_x10)
+{
+    uint32_t abs_value = server_comm_abs_i32(value_x10);
+
+    if (value_x10 < 0)
+    {
+        server_comm_send_u8((uint8_t)'-');
+    }
+
+    server_comm_send_u32(abs_value / 10U);
+    server_comm_send_u8((uint8_t)'.');
+    server_comm_send_u8((uint8_t)('0' + (abs_value % 10U)));
+}
+
+static void server_comm_send_fixed_2(int32_t value_x100)
+{
+    uint32_t abs_value = server_comm_abs_i32(value_x100);
+
+    if (value_x100 < 0)
+    {
+        server_comm_send_u8((uint8_t)'-');
+    }
+
+    server_comm_send_u32(abs_value / 100U);
+    server_comm_send_u8((uint8_t)'.');
+    server_comm_send_u8((uint8_t)('0' + ((abs_value / 10U) % 10U)));
+    server_comm_send_u8((uint8_t)('0' + (abs_value % 10U)));
+}
+
+static void server_comm_send_raw(int32_t tvoc_x10, int32_t eco2_x10)
+{
+    server_comm_send_cstr("Raw: TVOC=");
+    server_comm_send_fixed_1(tvoc_x10);
+    server_comm_send_cstr("ppb | eCO2=");
+    server_comm_send_fixed_1(eco2_x10);
+    server_comm_send_cstr("ppm\r\n");
+}
+
+static void server_comm_send_iaq(int32_t iaq_x100)
+{
+    server_comm_send_cstr("Predict=");
+    server_comm_send_fixed_2(iaq_x100);
+    server_comm_send_cstr("\r\n");
+}
+
+static void server_comm_send_published(int32_t tvoc_x10, int32_t actual_x100, int32_t predict_x100)
+{
+    server_comm_send_cstr("Published: TVOC=");
+    server_comm_send_fixed_1(tvoc_x10);
+    server_comm_send_cstr("ppb | Actual=");
+    server_comm_send_fixed_2(actual_x100);
+    server_comm_send_cstr(" | Predict=");
+    server_comm_send_fixed_2(predict_x100);
+    server_comm_send_cstr("\r\n");
 }
 
 static void task_server_comm_tx(void *arg)
@@ -270,16 +259,12 @@ static void task_server_comm_iaq(void *arg)
 
         debug_print("[SensorSim_Read OK]\r\n");
         debug_print("[IAQ_Predict OK]\r\n");
-
-        /* Send all sensor values as plain-text strings over UART so the
-         * ESP32-C6 can forward them verbatim to the MQTT broker.
-         * Format matches the regex patterns in backend/mqtt_client.py:
-         *   "Published: TVOC=<v>ppb | Actual=<a> | Predict=<p>"
-         *   "T=<t> C  RH=<h>%"
-         * NOTE: binary frame sends (server_comm_publish_raw / _predict)
-         * are intentionally removed - they corrupted the text stream. */
         debug_print("Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
                     t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
+
+        /* Keep USB debug on debug_print(), and mirror the server-compatible
+         * payload to the Arduino UART as plain ASCII text. */
+        server_comm_send_published(tvoc_10, actual_100, predict_100);
 
         OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
     }
@@ -298,6 +283,7 @@ void server_comm_init(void)
     s_server_comm.raw_pending = 0U;
     s_server_comm.iaq_pending = 0U;
 
+    server_comm_uart_init();
     fwupdate_receiver_init();
 
     if (OS_SemCreate(&s_server_comm_tx_sem, 0U, 1U) != OS_OK)
