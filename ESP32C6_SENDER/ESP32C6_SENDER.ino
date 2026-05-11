@@ -46,8 +46,8 @@
 /* -----------------------------------------------------------------------
  * USER CONFIGURATION â€” edit before flashing
  * ----------------------------------------------------------------------- */
-#define WIFI_SSID            "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD        "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID            "Devil"
+#define WIFI_PASSWORD        "hamhap7604"
 
 /* IP / hostname of the machine running FastAPI and the MQTT broker */
 #define SERVER_IP            "192.168.1.100"
@@ -60,8 +60,8 @@
 /* -----------------------------------------------------------------------
  * UART configuration
  * ----------------------------------------------------------------------- */
-#define UART1_TX_PIN         17
-#define UART1_RX_PIN         16
+#define UART1_TX_PIN         14
+#define UART1_RX_PIN         15
 #define UART_BAUD            115200UL
 
 /* Max length of one text line received from RA6M5 */
@@ -107,45 +107,13 @@ static PubSubClient s_mqtt(s_wifi_client);
 static uint8_t *    s_model_buf     = nullptr;
 static uint32_t     s_model_buf_len = 0UL;
 
-/* Last model version (file-size reported by server) used to detect updates */
-static uint32_t     s_last_model_version = 0UL;
+/* FreeRTOS synchronisation objects */
+static SemaphoreHandle_t g_serial1_mutex = nullptr;  /* guards Serial1 */
+static QueueHandle_t     g_line_queue    = nullptr;  /* logger -> net mgr */
 
-/* Timer for periodic model polls */
-static uint32_t     s_last_model_poll_ms = 0UL;
-
-/* Line accumulation buffer for RA6M5 debug text output */
-static char         s_line_buf[UART_LINE_BUF_LEN];
-static uint16_t     s_line_idx = 0U;
-
-/* -----------------------------------------------------------------------
- * Hardware / Protocol Constants
- * ----------------------------------------------------------------------- */
-#define UART1_TX_PIN      14
-#define UART1_RX_PIN      15
-#define UART_BAUD         115200UL
-
-#define STX               0x02U
-#define ETX               0x03U
-
-#define CMD_START         0x01U
-#define CMD_DATA          0x02U
-#define CMD_END           0x03U
-
-#define CMD_ACK           0xAAU
-#define CMD_NACK          0xFFU
-
-/* NACK reason codes (matches RA6M5 receiver) */
-#define NACK_CRC          0x01U
-#define NACK_SEQUENCE     0x02U
-#define NACK_FLASH        0x03U
-#define NACK_LENGTH       0x04U
-#define NACK_VERIFY       0x05U
-#define NACK_IMAGE_CRC    0x06U
-
-#define DATA_BLOCK_SIZE   128U          /* bytes per CMD_DATA frame           */
-#define ACK_TIMEOUT_MS    500U          /* ms to wait for ACK/NACK per frame  */
-#define MAX_RETRIES       3U            /* retries before giving up           */
-#define INTER_FRAME_DELAY 20U           /* ms between frames                  */
+/* Shared state flags (written only by task_net_manager) */
+static volatile bool g_mqtt_ok  = false;
+static volatile bool g_ota_busy = false;
 
 /* =========================================================================
  * CRC-16-CCITT (XMODEM) â€” matches RA6M5 fwupdate_receiver exactly.
@@ -206,60 +174,27 @@ static void mqtt_reconnect(void)
     }
 }
 
-static void mqtt_ensure(void)
-{
-    if (!s_mqtt.connected()) {
-        mqtt_reconnect();
-    }
-}
 
-static void mqtt_publish_line(const char *line)
-{
-    mqtt_ensure();
-    if (s_mqtt.connected()) {
-        s_mqtt.publish(MQTT_TOPIC_DATA, line);
-    }
-}
 
 /* =========================================================================
  * RA6M5 UART text bridge
  *
- * RA6M5 debug_print() outputs newline-terminated strings such as:
- *   "Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80\r\n"
- *   "[sensor:263] T=31.1 C  RH=46.9%\r\n"
- * These are forwarded as-is to the MQTT topic "iaq/node/data" so the
- * server's mqtt_client.py can parse them with its regex patterns.
+ * RA6M5 debug_print() outputs newline-terminated strings, e.g.:
+ *   "[547034 ms] Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80"
+ *   "[548171 ms] T=31.1 C  RH=46.9%"
+ *
+ * All data is sent as plain text (strings) — no binary framing.
+ * Lines matching either IAQ pattern are forwarded verbatim to MQTT topic
+ * "iaq/node/data" so backend/mqtt_client.py can parse them with its
+ * regex patterns (TVOC/Actual/Predict and T/RH).
  * ========================================================================= */
 static bool line_is_iaq_data(const char *line)
 {
-    return (strstr(line, "Published:") != nullptr) ||
-           (strstr(line, " T=") != nullptr && strstr(line, "RH=") != nullptr);
-}
-
-static void process_uart_rx(void)
-{
-    while (Serial1.available() > 0) {
-        char c = (char)Serial1.read();
-        if (c == '\n') {
-            /* Null-terminate, strip trailing \r */
-            if (s_line_idx > 0U && s_line_buf[s_line_idx - 1U] == '\r') {
-                s_line_buf[s_line_idx - 1U] = '\0';
-            } else {
-                s_line_buf[s_line_idx] = '\0';
-            }
-            if (s_line_idx > 0U && line_is_iaq_data(s_line_buf)) {
-                Serial.printf("[Bridgeâ†’MQTT] %s\n", s_line_buf);
-                mqtt_publish_line(s_line_buf);
-            }
-            s_line_idx = 0U;
-        } else {
-            if (s_line_idx < (UART_LINE_BUF_LEN - 1U)) {
-                s_line_buf[s_line_idx++] = c;
-            } else {
-                s_line_idx = 0U;   /* buffer overrun â€” discard */
-            }
-        }
-    }
+    /* Pattern 1 – IAQ result: "Published: TVOC=<v>ppb | Actual=<a> | Predict=<p>" */
+    if (strstr(line, "Published:") != nullptr) { return true; }
+    /* Pattern 2 – Temperature/Humidity: "T=<t> C  RH=<h>%" */
+    if (strstr(line, "T=") != nullptr && strstr(line, "RH=") != nullptr) { return true; }
+    return false;
 }
 
 /* =========================================================================
@@ -477,64 +412,201 @@ static bool download_and_push_model(void)
         Serial.printf("[OTA] Incomplete download %lu / %lu\n", read_total, model_len);
         return false;
     }
-    Serial.printf("[OTA] Downloaded %lu bytes\n", model_len);
-    return ota_send_model(s_model_buf, model_len);
+    Serial.printf("[OTA] Downloaded %lu bytes -- pushing to RA6M5\n", model_len);
+    /* Signal logger to pause, then grab exclusive Serial1 access */
+    g_ota_busy = true;
+    xSemaphoreTake(g_serial1_mutex, portMAX_DELAY);
+    bool ok = ota_send_model(s_model_buf, model_len);
+    xSemaphoreGive(g_serial1_mutex);
+    g_ota_busy = false;
+    return ok;
 }
 
-static void check_and_update_model(void)
-{
-    wifi_ensure();
-    uint32_t server_ver = fetch_model_version();
-    if (server_ver == 0UL) { return; }   /* server unreachable / no model yet */
+/* =========================================================================
+ * FreeRTOS Tasks
+ * ========================================================================= */
 
-    if (server_ver != s_last_model_version) {
-        Serial.printf("[OTA] New model detected (server=%lu, local=%lu)\n",
-                      server_ver, s_last_model_version);
-        if (download_and_push_model()) {
-            s_last_model_version = server_ver;
+/**
+ * task_uart_logger -- always-on UART monitor
+ *
+ * Reads every byte from Serial1, accumulates lines, and:
+ *   1. Prints ALL lines to Serial (USB CDC) unconditionally -- user always
+ *      sees RA6M5 output regardless of WiFi/MQTT connectivity.
+ *   2. Enqueues IAQ-pattern lines for task_net_manager to publish.
+ * Yields during OTA transfers so ota_send_model() has exclusive Serial1.
+ */
+static void task_uart_logger(void *arg)
+{
+    (void)arg;
+    static char line_buf[UART_LINE_BUF_LEN];
+    uint16_t    line_idx = 0U;
+
+    for (;;) {
+        /* Back off while OTA is actively sending frames */
+        if (g_ota_busy) { vTaskDelay(pdMS_TO_TICKS(50U)); continue; }
+
+        while (Serial1.available() > 0) {
+            char c = (char)Serial1.read();
+            if (c == '\n') {
+                if (line_idx > 0U && line_buf[line_idx - 1U] == '\r') {
+                    line_buf[line_idx - 1U] = '\0';
+                } else {
+                    line_buf[line_idx] = '\0';
+                }
+                if (line_idx > 0U) {
+                    /* Always print the received string to USB-CDC Serial */
+                    Serial.printf("[RA6M5 STR] %s\n", line_buf);
+
+                    /* Queue IAQ/T+RH string lines for MQTT publish */
+                    if (line_is_iaq_data(line_buf) && g_line_queue != nullptr) {
+                        char *entry = (char *)malloc(line_idx + 1U);
+                        if (entry != nullptr) {
+                            memcpy(entry, line_buf, line_idx + 1U);
+                            if (xQueueSend(g_line_queue, &entry,
+                                           pdMS_TO_TICKS(0U)) != pdTRUE) {
+                                free(entry);   /* drop if queue full */
+                            }
+                        }
+                    }
+                }
+                line_idx = 0U;
+            } else {
+                if (line_idx < (UART_LINE_BUF_LEN - 1U)) {
+                    line_buf[line_idx++] = c;
+                } else {
+                    line_idx = 0U;   /* line too long -- discard */
+                }
+            }
         }
-    } else {
-        Serial.println("[OTA] Model up to date");
+        vTaskDelay(pdMS_TO_TICKS(5U));
+    }
+}
+
+/**
+ * task_net_manager -- WiFi + MQTT lifecycle + publish queue drain.
+ *
+ * All PubSubClient calls live here so the library is never accessed
+ * concurrently from multiple tasks.
+ */
+static void task_net_manager(void *arg)
+{
+    (void)arg;
+
+    wifi_connect();
+    if (WiFi.status() == WL_CONNECTED) {
+        s_mqtt.setServer(SERVER_IP, MQTT_BROKER_PORT);
+        s_mqtt.setKeepAlive(MQTT_KEEPALIVE_S);
+        mqtt_reconnect();
+    }
+
+    for (;;) {
+        /* Maintain WiFi */
+        if (WiFi.status() != WL_CONNECTED) {
+            g_mqtt_ok = false;
+            wifi_ensure();
+        }
+
+        /* Maintain MQTT */
+        if (WiFi.status() == WL_CONNECTED) {
+            if (!s_mqtt.connected()) {
+                g_mqtt_ok = false;
+                mqtt_reconnect();
+            } else {
+                g_mqtt_ok = true;
+                s_mqtt.loop();
+            }
+        }
+
+        /* Drain line queue and publish */
+        char *line = nullptr;
+        while (xQueueReceive(g_line_queue, &line, pdMS_TO_TICKS(0U)) == pdTRUE) {
+            if (line != nullptr) {
+                if (g_mqtt_ok && s_mqtt.connected()) {
+                    /* Publish the raw string — server mqtt_client.py parses
+                     * it with regex (TVOC/Actual/Predict and T/RH patterns) */
+                    s_mqtt.publish(MQTT_TOPIC_DATA, line);
+                    Serial.printf("[MQTT-> STR] %s\n", line);
+                } else {
+                    Serial.printf("[MQTT offline] dropped str: %s\n", line);
+                }
+                free(line);
+                line = nullptr;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(200U));
+    }
+}
+
+/**
+ * task_ota_checker -- polls server every MODEL_POLL_INTERVAL_MS.
+ * download_and_push_model() acquires g_serial1_mutex before UART send.
+ */
+static void task_ota_checker(void *arg)
+{
+    (void)arg;
+    uint32_t last_known_ver = 0UL;
+
+    vTaskDelay(pdMS_TO_TICKS(5000U));   /* allow WiFi time to connect */
+
+    for (;;) {
+        if (WiFi.status() == WL_CONNECTED) {
+            uint32_t server_ver = fetch_model_version();
+            if (server_ver == 0UL) {
+                Serial.println("[OTA] Server unreachable or no model yet");
+            } else if (server_ver != last_known_ver) {
+                Serial.printf("[OTA] New model (server=%lu, local=%lu)\n",
+                              server_ver, last_known_ver);
+                if (download_and_push_model()) {
+                    last_known_ver = server_ver;
+                    Serial.println("[OTA] Update successful");
+                } else {
+                    Serial.println("[OTA] Update failed -- will retry");
+                }
+            } else {
+                Serial.println("[OTA] Model up to date");
+            }
+        } else {
+            Serial.println("[OTA] WiFi offline -- skipping model check");
+        }
+        vTaskDelay(pdMS_TO_TICKS(MODEL_POLL_INTERVAL_MS));
     }
 }
 
 /* =========================================================================
- * Arduino setup / loop
+ * Arduino entry points
  * ========================================================================= */
 void setup(void)
 {
     Serial.begin(115200U);
     while (!Serial && millis() < 3000U) {}
-    Serial.println("\n[BOOT] ESP32-C6 IAQ Bridge & OTA Updater");
+    Serial.println("\n[BOOT] ESP32-C6 IAQ Bridge & OTA Updater (FreeRTOS)");
+    Serial.printf("[BOOT] UART1 RX=GPIO%d TX=GPIO%d @ %lu baud\n",
+                  UART1_RX_PIN, UART1_TX_PIN, UART_BAUD);
 
-    /* UART1 â†’ RA6M5 */
     Serial1.begin(UART_BAUD, SERIAL_8N1, UART1_RX_PIN, UART1_TX_PIN);
+    Serial.println("[BOOT] Serial1 open -- RA6M5 output will appear below:");
 
-    /* WiFi */
-    wifi_connect();
+    g_serial1_mutex = xSemaphoreCreateMutex();
+    g_line_queue    = xQueueCreate(16U, sizeof(char *));
+    if (g_serial1_mutex == nullptr || g_line_queue == nullptr) {
+        Serial.println("[BOOT] FATAL: FreeRTOS object creation failed");
+        for (;;) {}
+    }
 
-    /* MQTT */
-    s_mqtt.setServer(SERVER_IP, MQTT_BROKER_PORT);
-    s_mqtt.setKeepAlive(MQTT_KEEPALIVE_S);
-    mqtt_reconnect();
+    /* Spawn three tasks, all pinned to core 0 */
+    xTaskCreatePinnedToCore(task_uart_logger, "uart_log", 4096U,
+                            nullptr, 3U, nullptr, 0);
+    xTaskCreatePinnedToCore(task_net_manager, "net_mgr",  6144U,
+                            nullptr, 2U, nullptr, 0);
+    xTaskCreatePinnedToCore(task_ota_checker, "ota_chk",  8192U,
+                            nullptr, 1U, nullptr, 0);
 
-    /* Trigger an immediate model version check on boot */
-    s_last_model_poll_ms = millis() - MODEL_POLL_INTERVAL_MS;
-
-    Serial.println("[BOOT] Ready â€” bridging RA6M5 UART to MQTT");
+    Serial.println("[BOOT] All tasks started");
 }
 
 void loop(void)
 {
-    /* Keep MQTT connection alive and process incoming messages */
-    s_mqtt.loop();
-
-    /* Bridge RA6M5 debug text to MQTT */
-    process_uart_rx();
-
-    /* Periodic OTA model version check */
-    if ((millis() - s_last_model_poll_ms) >= MODEL_POLL_INTERVAL_MS) {
-        s_last_model_poll_ms = millis();
-        check_and_update_model();
-    }
+    /* All real work is done in the three tasks above.
+     * Sleep indefinitely so loopTask does not waste CPU. */
+    vTaskDelay(portMAX_DELAY);
 }

@@ -184,8 +184,7 @@ int main(void) {
    * normally — proving the full NVS persist→clear path works end-to-end.
    */
   crash_reason = safe_reset_init();
-debug_print("First StartUp!");
-#define SAFE_RESET_SELF_TEST  1   /* set to 0 for production */
+debug_print("First StartUp!\r\n");
 #if SAFE_RESET_SELF_TEST
   if (crash_reason == SAFE_RESET_REASON_NONE)
   {
@@ -202,18 +201,6 @@ debug_print("First StartUp!");
 #else
   (void)crash_reason;
 #endif /* SAFE_RESET_SELF_TEST */
-  /* Force UART self-check log at boot: re-init UART and log all register values */
-  UART_Init((UART_t)DEBUG_UART_CHANNEL, DEBUG_UART_BAUDRATE);
-  dbg_link_ok = debug_print_backend_ready();
-  if (dbg_link_ok == 0U) {
-    /* Continue app execution even when debug link is not ready yet. */
-    LED3_OFF();
-  }
-  
-  /* Check if clock fell back to HOCO during startup */
-  if (CLK_GetFallbackOccurred() != 0U) {
-    debug_print("[WARN] Clock fallback to HOCO triggered - running at 48 MHz instead of 200 MHz\r\n");
-  }
   
   debug_print("\r\n=== RA6M5 RTOS Application Test ===\r\n");
 #if OS_DEBUG_BACKEND_USB_CDC
@@ -237,8 +224,10 @@ debug_print("First StartUp!");
 
   OS_Init();
 
-  /* Khởi tạo RTOS Preemptive Test Task */
+#if PREEMTIVE_RTOS_TEST
+  /* Init RTOS Preemptive Test Task */
   test_rtos_preemptive_init();
+#endif
 
 #if OS_DEBUG_BACKEND_USB_CDC
   status = OS_Task_Create(&g_usb_svc_tcb, task_usb_service, (void *)0,

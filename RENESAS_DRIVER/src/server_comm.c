@@ -270,11 +270,16 @@ static void task_server_comm_iaq(void *arg)
 
         debug_print("[SensorSim_Read OK]\r\n");
         debug_print("[IAQ_Predict OK]\r\n");
+
+        /* Send all sensor values as plain-text strings over UART so the
+         * ESP32-C6 can forward them verbatim to the MQTT broker.
+         * Format matches the regex patterns in backend/mqtt_client.py:
+         *   "Published: TVOC=<v>ppb | Actual=<a> | Predict=<p>"
+         *   "T=<t> C  RH=<h>%"
+         * NOTE: binary frame sends (server_comm_publish_raw / _predict)
+         * are intentionally removed - they corrupted the text stream. */
         debug_print("Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
                     t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
-
-        server_comm_publish_raw(pkt.tvoc, pkt.eco2);
-        server_comm_publish_predict(forecast);
 
         OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
     }

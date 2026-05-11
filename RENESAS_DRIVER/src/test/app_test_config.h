@@ -28,4 +28,7 @@
 #define OS_FLASH_NVS_TEST_ENABLE          1U
 #endif
 
+#define SAFE_RESET_SELF_TEST  0   /* set to 0 for production */
+#define PREEMTIVE_RTOS_TEST   0   /* set to 0 for production */
+
 #endif /* APP_TEST_CONFIG_H */

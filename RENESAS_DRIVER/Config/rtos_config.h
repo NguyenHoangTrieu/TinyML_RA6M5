@@ -35,11 +35,15 @@
 #define OS_MAX_PRIORITIES           32U
 
 /** Default per-task stack in bytes.
- *  8 KB: covers TFLite Micro Invoke() call-chain depth (~400 B) on the
- *  IAQ task, plus FOTA frame processing in the RX task, with ~6 KB margin
- *  for guard room above the canary (see OS_STACK_CANARY_VALUE in kernel.h).
+ *  16 KB: TFLite Micro Invoke() can spike to ~2 KB on the IAQ task
+ *  (FP context + operator call chain + debug_print vsprintf buffer).
+ *  The original 8 KB was observed to produce complete MCU halts after
+ *  ~18 minutes via HardFault from stack overflow.  16 KB provides ~14 KB
+ *  of working headroom above the OS_STACK_CANARY_VALUE sentinel.
+ *  RA6M5 has 512 KB SRAM; with up to 12 active tasks the total stack
+ *  footprint is 12 × 16 KB = 192 KB, well within budget.
  */
-#define OS_DEFAULT_STACK_SIZE       8192U
+#define OS_DEFAULT_STACK_SIZE       16384U
 
 /** Stack size in 32-bit words (derived). */
 #define OS_DEFAULT_STACK_WORDS      (OS_DEFAULT_STACK_SIZE / 4U)
@@ -101,9 +105,9 @@
  *   OS_DEBUG_BACKEND_SEMIHOST : ARM semihosting via JTAG/SWD debugger
  *                               (requires --specs=rdimon.specs at link time)
  */
-#define OS_DEBUG_BACKEND_UART       1
+#define OS_DEBUG_BACKEND_UART       0
 #define OS_DEBUG_BACKEND_SEMIHOST   0
-#define OS_DEBUG_BACKEND_USB_CDC    0
+#define OS_DEBUG_BACKEND_USB_CDC    1
 
 /**
  * SCI channel used for UART output (0–9).

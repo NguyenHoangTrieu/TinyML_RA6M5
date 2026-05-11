@@ -229,3 +229,110 @@ void safe_reset_check_stacks(void)
         /* safe_reset_trigger() never returns */
     }
 }
+
+/* -----------------------------------------------------------------------
+ * Fault handler support
+ *
+ * safe_reset_trigger_raw() is a fault-safe variant that:
+ *   - Skips debug_print() (USB CDC may be in a broken state in a fault)
+ *   - Exits P/E mode first so Data Flash is readable before nvs_read_block()
+ *   - Always calls hw_system_reset(), even if flash write times out
+ *
+ * Called from the four Cortex-M33 fault handlers below.  All four run in
+ * Handler mode on MSP, so the stack frames they build are on the (intact)
+ * Main Stack, not on the potentially-corrupted Process Stack.
+ * ----------------------------------------------------------------------- */
+static void safe_reset_trigger_raw(uint32_t reason)
+{
+    uint8_t           buf[DATA_FLASH_BLOCK_SIZE];
+    uint32_t          count;
+    flash_hp_status_t st;
+
+    /* If a prior P/E sequence was interrupted (e.g., another task was in
+     * flash_hp_init when the fault fired), exit P/E mode first so the
+     * memory-mapped read in nvs_read_block() does not cause a second fault. */
+    flash_hp_exit();   /* Harmless if already in read mode. */
+
+    /* Read current NVS block (memory-mapped, read mode is now restored). */
+    nvs_read_block(buf);
+
+    /* Write crash fields. */
+    buf[NVS_OFF_SAFE_MAGIC_0] = SAFE_RESET_NVS_MAGIC_0;
+    buf[NVS_OFF_SAFE_MAGIC_1] = SAFE_RESET_NVS_MAGIC_1;
+    buf[NVS_OFF_SAFE_MAGIC_2] = SAFE_RESET_NVS_MAGIC_2;
+    buf[NVS_OFF_SAFE_MAGIC_3] = SAFE_RESET_NVS_MAGIC_3;
+    be32_write(buf, NVS_OFF_REASON_0, reason);
+
+    count = be32_read(buf, NVS_OFF_COUNT_0);
+    if (count == 0xFFFFFFFFUL)
+    {
+        count = 0U;
+    }
+    count++;
+    be32_write(buf, NVS_OFF_COUNT_0, count);
+
+    /* Persist to Data Flash.  If flash_hp_init() times out the NVS write is
+     * skipped but hw_system_reset() still runs — we recover regardless. */
+    st = flash_hp_init();
+    if (st == FLASH_HP_OK)
+    {
+        (void)nvs_erase_and_write(buf);
+        flash_hp_exit();
+    }
+
+    hw_system_reset();   /* Never returns. */
+}
+
+/**
+ * @brief Shared entry point for all Cortex-M33 fault handlers.
+ *
+ * Disables interrupts first (prevents a second fault from re-entering),
+ * then calls the raw (no-debug_print) reset path.
+ */
+static void fault_enter(void)
+{
+    /* Mask all configurable-priority interrupts. */
+    __asm volatile("cpsid i" ::: "memory");
+    safe_reset_trigger_raw(SAFE_RESET_REASON_FAULT);
+    /* hw_system_reset() inside safe_reset_trigger_raw() never returns.
+     * This loop is unreachable but silences compiler warnings. */
+    for (;;)
+    {
+        __asm volatile("nop");
+    }
+}
+
+/* -----------------------------------------------------------------------
+ * Cortex-M33 fault handlers
+ *
+ * These override the weak default symbols from the device startup file.
+ * Without them the CPU would spin in an empty loop on any fault, making
+ * the MCU appear completely dead (no LED blink, no serial output).
+ *
+ * After the next boot the crash will be visible in the boot log:
+ *   [SAFE_RESET] Previous crash detected: reason=0x00000002  count=N
+ * ----------------------------------------------------------------------- */
+
+/** Hard Fault — catches all escalated faults and unhandled exceptions. */
+void HardFault_Handler(void)
+{
+    fault_enter();
+}
+
+/** Memory Management Fault — MPU violation or execute-never region. */
+void MemManage_Handler(void)
+{
+    fault_enter();
+}
+
+/** Bus Fault — invalid memory access (e.g., Data Flash while in P/E mode). */
+void BusFault_Handler(void)
+{
+    fault_enter();
+}
+
+/** Usage Fault — undefined instruction, divide-by-zero, unaligned access. */
+void UsageFault_Handler(void)
+{
+    fault_enter();
+}
