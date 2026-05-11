@@ -131,3 +131,58 @@ Receiver recovery rules:
 - The running image length remains the original byte count; padding bytes are not included in the image CRC.
 
 This keeps the transport protocol independent from the underlying flash programming unit.
+
+---
+
+## NVS Metadata Persistence (OTA Validity Record)
+
+After a successful `CMD_END` (CRC + read-back verified), the receiver writes a
+64-byte validity record into the **last** 64-byte Data Flash block at
+`DATA_FLASH_LAST_BLOCK_ADDR` (`0x08001FC0`).
+
+This record survives power cycles and resets, enabling `IAQ_Init()` to select the
+OTA model from Data Flash instead of the compiled-in fallback on every subsequent boot.
+
+### NVS Block Layout (64 bytes)
+
+```
+Offset  Size  Content
+------  ----  -------
+ 0.. 3   4    Magic 0xDE 0xAD 0xBE 0xEF  — OTA model present
+ 4.. 7   4    model_len  (big-endian uint32_t)
+ 8.. 9   2    model_crc  (CRC-16-CCITT, big-endian uint16_t)
+10..11   2    0xFF (reserved)
+12..15   4    Safe-reset magic 0xC0 0xFF 0xEE 0x00  (written by safe_reset.c)
+16..19   4    Reset reason code (big-endian uint32_t)
+20..23   4    Cumulative reset count (big-endian uint32_t)
+24..63  40    0xFF (reserved)
+```
+
+### Implementation
+
+`fwupdate_write_nvs_metadata(uint32_t model_len, uint16_t model_crc)` in
+`fwupdate_receiver.c`:
+
+1. Reads the existing 64-byte block into a local buffer (memory-mapped read,
+   no P/E required).
+2. Sets bytes `[0..3]` to `0xDEADBEEF` (big-endian).
+3. Writes `model_len` into bytes `[4..7]` (big-endian).
+4. Writes `model_crc` into bytes `[8..9]` (big-endian), zeroes `[10..11]`.
+5. Preserves bytes `[12..63]` (safe-reset marker + padding).
+6. Enters P/E mode (`flash_hp_init`), erases 1 block, writes back 64 bytes,
+   exits P/E (`flash_hp_exit`).
+
+Called immediately before `s_ctx.state = FWUPDATE_STATE_DONE`.
+
+### Boot-time OTA Model Selection
+
+`iaq_flash_model_valid(uint32_t *out_len)` in `iaq_predictor.cpp`:
+
+- Reads bytes `[0..7]` from `DATA_FLASH_LAST_BLOCK_ADDR`.
+- Returns `true` if magic == `0xDEADBEEF` and `model_len` is within bounds.
+- `IAQ_Init()` uses `(const uint8_t *)DATA_FLASH_BASE` as the model pointer
+  when valid, otherwise falls back to the compiled-in `g_iaq_model_data[]`.
+
+> **Note**: bytes `[12..23]` are owned by `safe_reset.c` and must not be
+> modified by the FWUpdate path.  `fwupdate_write_nvs_metadata()` preserves
+> them via the read-modify-write sequence.

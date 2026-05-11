@@ -1,7 +1,7 @@
 ---
 type: hub
 status: in-progress
-last_updated: 2026-04-23
+last_updated: 2025-07-11
 ---
 
 # RENESAS_DRIVER — Knowledge Base
@@ -33,16 +33,17 @@ Tags: #in-progress #system
 |------|-------|
 | [[FW_Clock_Driver]] | `drv_clk.h/.c` — CLK_Init, CLK_ModuleStart_SCI |
 | [[FW_RWP_Driver]] | `drv_rwp.h/.c` — RWP_Unlock/Lock_Clock_MSTP |
-| [[FW_UART_Driver]] | `drv_uart.h/.c` — UART_Init, SendChar (with timeout) |
+| [[FW_UART_Driver]] | `drv_uart.h/.c` — UART_Init, SendChar (with timeout).  **CK board: `DEBUG_UART_CHANNEL=1` (SCI1/UART1, P709 TX / P708 RX) = J-Link OB VCOM** |
 | [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
 | [[FW_USB_Driver]] | `drv_usb.h/.c` — USBFS dual-mode (Device CDC log + Host CDC-ACM) |
-| [[FW_FWUpdate_Receiver]] | `fwupdate_receiver.h/.c` — UART framed model transfer, CRC, ACK/NACK, Data Flash writes |
+| [[FW_FWUpdate_Receiver]] | `Middleware/FWUpdate/fwupdate_receiver.h/.c` — UART framed model transfer, CRC, ACK/NACK, Data Flash writes, **NVS metadata write after CMD_END** |
+| [[FW_SafeReset]] | `src/safe_reset.h/.c` — NVS crash-reason persistence (Data Flash bytes [12..23]), SYSRESETREQ, stack canary scan |
 | server_comm (code) | `src/server_comm.h/.c` — UART TX/RX split tasks: telemetry TX + FWUpdate RX |
 | [[FW_TestFramework]] | `test_runner.h/.c` — shared test framework, currently used by IAQ and RTOS suites |
 | [[FW_RTOS_Test]] | Khịch bản test preemptive scheduling |
 | [[RCA_RTOS_Preemptive_Verification]] | Phân tích xác nhận PASS là hợp lệ |
-| [[FW_TFLite_Integration]] | `aqi_inference.cpp` — TensorFlow Lite Micro inference wrapper |
+| [[FW_TFLite_Integration]] | `src/iaq_predictor.cpp` — TFLite Micro inference wrapper, **OTA model boot selection from Data Flash vs compiled-in fallback** |
 
 ---
 
@@ -67,6 +68,9 @@ Tags: #in-progress #system
 | [[FW_RTOS_Test]] | Guide and test logic for RTOS preemptive capabilities |
 
 Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
+- `OS_DEFAULT_STACK_SIZE = 8192` (8 KB per task; raised from 4 KB for TFLite headroom)
+- Stack canary `OS_STACK_CANARY_VALUE = 0xDEADC0DE` planted at `tcb->stack[0]` by `os_stack_init()`.
+- `OS_StackOverflowCheck()` iterates all tasks; called from `safe_reset_check_stacks()` every 250 ms.
 
 ---
 

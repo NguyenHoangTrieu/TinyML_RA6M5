@@ -69,4 +69,27 @@ void     OS_TriggerPendSV(void);
 /* Port-layer (port_cm33.S) */
 extern void OS_StartFirstTask(void);
 
+/* ======================================================================
+ * Stack Overflow Detection
+ *
+ * OS_Task_Create() writes OS_STACK_CANARY_VALUE to the lowest address of
+ * each task's stack array (tcb->stack[0]).  The stack grows downward from
+ * tcb->stack[OS_DEFAULT_STACK_WORDS], so stack[0] is the first word
+ * overwritten on an overflow.
+ *
+ * OS_StackOverflowCheck() iterates all registered tasks and returns the
+ * 1-based index of the first task with a corrupted canary, or 0 if all
+ * canaries are intact.
+ * ====================================================================== */
+
+/** Magic value planted at the bottom of every task stack. */
+#define OS_STACK_CANARY_VALUE  0xDEADC0DEUL
+
+/**
+ * @brief Check all task stack canaries for corruption.
+ * @return 0 if all stacks are intact;
+ *         (task_index + 1) for the first task whose canary is corrupted.
+ */
+uint32_t OS_StackOverflowCheck(void);
+
 #endif /* KERNEL_H */

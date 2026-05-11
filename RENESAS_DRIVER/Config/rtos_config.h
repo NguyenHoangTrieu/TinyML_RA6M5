@@ -34,8 +34,12 @@
 /** Number of discrete priority levels.  0 = highest, N−1 = lowest. */
 #define OS_MAX_PRIORITIES           32U
 
-/** Default per-task stack in bytes.  4 KB supports FOTA / TinyML. */
-#define OS_DEFAULT_STACK_SIZE       4096U
+/** Default per-task stack in bytes.
+ *  8 KB: covers TFLite Micro Invoke() call-chain depth (~400 B) on the
+ *  IAQ task, plus FOTA frame processing in the RX task, with ~6 KB margin
+ *  for guard room above the canary (see OS_STACK_CANARY_VALUE in kernel.h).
+ */
+#define OS_DEFAULT_STACK_SIZE       8192U
 
 /** Stack size in 32-bit words (derived). */
 #define OS_DEFAULT_STACK_WORDS      (OS_DEFAULT_STACK_SIZE / 4U)

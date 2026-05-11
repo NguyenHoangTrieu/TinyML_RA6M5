@@ -80,9 +80,13 @@ static void os_idle_task(void *arg) {
   }
 }
 
-/** Build a fake exception-return stack frame for a new task. */
+/** Build a fake exception-return stack frame for a new task.
+ *  Also plants a canary at the lowest stack address to detect overflow. */
 static uint32_t *os_stack_init(OS_TCB_t *tcb, void (*entry)(void *),
                                void *arg) {
+  /* Plant canary at the bottom of the stack (lowest address). */
+  tcb->stack[0] = OS_STACK_CANARY_VALUE;
+
   uint32_t *sp = &tcb->stack[OS_DEFAULT_STACK_WORDS];
 
   /* Hardware-stacked frame (popped by exception return) */
@@ -379,4 +383,27 @@ void SysTick_Handler(void) {
   OS_ExitCritical();
 
   OS_Schedule();
+}
+
+/* ======================================================================
+ * OS_StackOverflowCheck — canary-based per-task stack overflow detection.
+ *
+ * Iterates all registered tasks and verifies that the canary word planted
+ * at stack[0] (lowest address, first overwritten on overflow) still holds
+ * the value OS_STACK_CANARY_VALUE.
+ *
+ * Returns: 0 = all intact; (i + 1) = 1-based index of first bad task.
+ * ====================================================================== */
+uint32_t OS_StackOverflowCheck(void)
+{
+    uint32_t i;
+    for (i = 0U; i < os_task_count; i++)
+    {
+        if ((os_task_table[i] != (OS_TCB_t *)0) &&
+            (os_task_table[i]->stack[0] != OS_STACK_CANARY_VALUE))
+        {
+            return i + 1U;   /* 1-based index of corrupted task */
+        }
+    }
+    return 0U;   /* all canaries intact */
 }

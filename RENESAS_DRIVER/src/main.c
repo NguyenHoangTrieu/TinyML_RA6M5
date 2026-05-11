@@ -23,6 +23,7 @@
 #include "test/test_flash_nvs.h"
 #include "test/test_rtos.h"
 #include "test/test_usb.h"
+#include "safe_reset.h"
 #include <stdint.h>
 
 /* Board-specific LED definitions from board_config.h */
@@ -128,6 +129,10 @@ static void task_led_blink(void *arg) {
   for (;;) {
     led_toggle(LED1_PIN);
     OS_Task_Delay(250U);
+
+    /* Periodic stack canary check — triggers safe_reset on overflow.
+     * Runs every 250 ms alongside the LED blink duty cycle. */
+    safe_reset_check_stacks();
   }
 }
 
@@ -160,10 +165,43 @@ static void task_usb_service(void *arg) {
 int main(void) {
   int32_t status;
   uint8_t dbg_link_ok;
+  uint32_t crash_reason;
 
   led_init();
 
   debug_print_init();
+
+  /*
+   * Safe-reset init — MUST run before any task code.
+   *
+   * Checks the NVS crash record written by a previous safe_reset_trigger().
+   * If a record exists, logs the reason, clears the marker (prevents loop),
+   * and returns the reason code.  On a clean first boot returns NONE.
+   *
+   * When SAFE_RESET_SELF_TEST is enabled (see below) the first clean boot
+   * writes an APP_REQUEST crash record and immediately resets the MCU.
+   * The second boot finds + clears the record, logs success, and continues
+   * normally — proving the full NVS persist→clear path works end-to-end.
+   */
+  crash_reason = safe_reset_init();
+debug_print("First StartUp!");
+#define SAFE_RESET_SELF_TEST  1   /* set to 0 for production */
+#if SAFE_RESET_SELF_TEST
+  if (crash_reason == SAFE_RESET_REASON_NONE)
+  {
+      /* First boot — deliberately trigger a crash record to NVS */
+      debug_print("[SAFE_RESET SELF_TEST] Boot 1: writing test record and resetting...\r\n");
+      safe_reset_trigger(SAFE_RESET_REASON_APP_REQUEST);   /* never returns */
+  }
+  else
+  {
+      /* Second boot — record was found and cleared by safe_reset_init() */
+      debug_print("[SAFE_RESET SELF_TEST] Boot 2 OK: recovered from reason=0x%08lx\r\n",
+                  (unsigned long)crash_reason);
+  }
+#else
+  (void)crash_reason;
+#endif /* SAFE_RESET_SELF_TEST */
   /* Force UART self-check log at boot: re-init UART and log all register values */
   UART_Init((UART_t)DEBUG_UART_CHANNEL, DEBUG_UART_BAUDRATE);
   dbg_link_ok = debug_print_backend_ready();

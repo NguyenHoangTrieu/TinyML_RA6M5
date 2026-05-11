@@ -22,8 +22,9 @@
  */
 
 #include "iaq_predictor.h"
-#include "iaq_model_data.h"    /* g_iaq_model_data[] — model weights in Flash */
+#include "iaq_model_data.h"    /* g_iaq_model_data[] — fallback model in Code Flash */
 #include "scaler_constants.h"  /* IAQ_MEAN[], IAQ_SCALE[] — z-score params    */
+#include "drv_flash_hp.h"      /* DATA_FLASH_BASE, DATA_FLASH_LAST_BLOCK_ADDR */
 
 /* TFLite Micro headers — include only what is needed */
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -54,6 +55,47 @@ static TfLiteTensor*           s_output     = nullptr;
  * ------------------------------------------------------------------------- */
 static tflite::MicroMutableOpResolver<2> s_resolver;
 
+/* -------------------------------------------------------------------------
+ * NVS block magic written by fwupdate_receiver after a successful OTA
+ * transfer. Layout at DATA_FLASH_LAST_BLOCK_ADDR (last 64-byte block):
+ *   [0..3]  0xDE 0xAD 0xBE 0xEF  — valid-model marker
+ *   [4..7]  model_len big-endian uint32_t
+ *   [8..9]  model_crc big-endian uint16_t
+ * ------------------------------------------------------------------------- */
+#define IAQ_NVS_MAGIC_0  0xDEU
+#define IAQ_NVS_MAGIC_1  0xADU
+#define IAQ_NVS_MAGIC_2  0xBEU
+#define IAQ_NVS_MAGIC_3  0xEFU
+
+/**
+ * Check whether a valid OTA model was written to Data Flash.
+ * Returns true and sets *out_len if the NVS block contains a valid marker.
+ * Called once from IAQ_Init().
+ */
+static bool iaq_flash_model_valid(uint32_t *out_len)
+{
+    const volatile uint8_t *nvs =
+        (const volatile uint8_t *)(uintptr_t)DATA_FLASH_LAST_BLOCK_ADDR;
+
+    if (nvs[0] != IAQ_NVS_MAGIC_0 || nvs[1] != IAQ_NVS_MAGIC_1 ||
+        nvs[2] != IAQ_NVS_MAGIC_2 || nvs[3] != IAQ_NVS_MAGIC_3)
+    {
+        return false;
+    }
+
+    uint32_t len = ((uint32_t)nvs[4] << 24U) | ((uint32_t)nvs[5] << 16U) |
+                   ((uint32_t)nvs[6] <<  8U) |  (uint32_t)nvs[7];
+
+    /* Sanity: length must be non-zero and fit within the model region */
+    if (len == 0UL || len > (DATA_FLASH_SIZE - DATA_FLASH_BLOCK_SIZE))
+    {
+        return false;
+    }
+
+    *out_len = len;
+    return true;
+}
+
 /* =========================================================================
  * IAQ_Init
  * ========================================================================= */
@@ -63,8 +105,32 @@ bool IAQ_Init(void)
     s_resolver.AddFullyConnected();
     s_resolver.AddRelu();
 
-    /* Map model from Flash (no copy) */
-    s_model = tflite::GetModel(g_iaq_model_data);
+    /* ------------------------------------------------------------------
+     * Model source selection:
+     *   1. If fwupdate_receiver wrote a valid OTA model to Data Flash
+     *      (NVS magic present at DATA_FLASH_LAST_BLOCK_ADDR), use the
+     *      memory-mapped Data Flash pointer so the new model is active
+     *      immediately after reset without reflashing Code Flash.
+     *   2. Otherwise fall back to the compiled-in g_iaq_model_data[].
+     * ------------------------------------------------------------------ */
+    const uint8_t *model_ptr  = g_iaq_model_data;
+    const char    *model_src  = "Code Flash (built-in)";
+    uint32_t       flash_len  = 0UL;
+
+    if (iaq_flash_model_valid(&flash_len))
+    {
+        model_ptr = (const uint8_t *)(uintptr_t)DATA_FLASH_BASE;
+        model_src = "Data Flash (OTA)";
+        MicroPrintf("IAQ: using OTA model from Data Flash (%lu bytes)", flash_len);
+    }
+    else
+    {
+        MicroPrintf("IAQ: using built-in model (%u bytes)", g_iaq_model_data_len);
+    }
+    (void)model_src;   /* suppress unused-variable warning if MicroPrintf omitted */
+
+    /* Map model from selected source (no copy — zero allocation) */
+    s_model = tflite::GetModel(model_ptr);
     if (s_model->version() != TFLITE_SCHEMA_VERSION) {
         MicroPrintf("IAQ model schema mismatch: expected %d, got %d",
                     TFLITE_SCHEMA_VERSION, (int)s_model->version());

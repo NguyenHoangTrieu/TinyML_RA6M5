@@ -158,6 +158,69 @@ static uint8_t frame_crc_valid(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Internal: write model validity metadata to the reserved NVS block.
+ *
+ * NVS block location: DATA_FLASH_LAST_BLOCK_ADDR (last 64-byte block)
+ * Layout (64 bytes):
+ *   [0..3]   Magic 0xDE 0xAD 0xBE 0xEF  — valid model indicator
+ *   [4..7]   model_len (big-endian uint32_t)
+ *   [8..9]   model_crc (big-endian uint16_t)
+ *   [10..63] 0xFF padding
+ *
+ * After a successful transfer iaq_predictor.cpp reads this block on
+ * startup. If the magic matches, it uses the Data Flash model at
+ * DATA_FLASH_BASE instead of the compiled-in g_iaq_model_data[].
+ * This persists across power cycles / resets.
+ * ----------------------------------------------------------------------- */
+static void fwupdate_write_nvs_metadata(uint32_t model_len, uint16_t model_crc)
+{
+    uint8_t           nvs_data[DATA_FLASH_BLOCK_SIZE];
+    uint32_t          i;
+    flash_hp_status_t st;
+
+    /* Fill entire block with 0xFF (erased state) */
+    for (i = 0UL; i < DATA_FLASH_BLOCK_SIZE; i++)
+    {
+        nvs_data[i] = 0xFFU;
+    }
+
+    /* Magic marker */
+    nvs_data[0] = 0xDEU;
+    nvs_data[1] = 0xADU;
+    nvs_data[2] = 0xBEU;
+    nvs_data[3] = 0xEFU;
+
+    /* Model length (big-endian) */
+    nvs_data[4] = (uint8_t)((model_len >> 24U) & 0xFFU);
+    nvs_data[5] = (uint8_t)((model_len >> 16U) & 0xFFU);
+    nvs_data[6] = (uint8_t)((model_len >>  8U) & 0xFFU);
+    nvs_data[7] = (uint8_t)(model_len & 0xFFU);
+
+    /* Model CRC-16 (big-endian) */
+    nvs_data[8] = (uint8_t)((model_crc >> 8U) & 0xFFU);
+    nvs_data[9] = (uint8_t)(model_crc & 0xFFU);
+
+    /* Re-enter P/E mode for NVS block write */
+    st = flash_hp_init();
+    if (st != FLASH_HP_OK)
+    {
+        return;
+    }
+
+    /* Erase NVS block (1 × 64-byte block) */
+    st = flash_hp_erase(DATA_FLASH_LAST_BLOCK_ADDR, 1U);
+    if (st != FLASH_HP_OK)
+    {
+        flash_hp_exit();
+        return;
+    }
+
+    /* Write NVS metadata (must be 4-byte aligned length = 64 bytes) */
+    st = flash_hp_write(DATA_FLASH_LAST_BLOCK_ADDR, nvs_data, DATA_FLASH_BLOCK_SIZE);
+    flash_hp_exit();
+}
+
+/* -----------------------------------------------------------------------
  * Internal: process a complete, CRC-verified frame.
  * Returns FLASH_HP_OK on success.
  * ----------------------------------------------------------------------- */
@@ -390,7 +453,9 @@ static flash_hp_status_t process_frame(void)
                 }
             }
 
-            /* All checks passed */
+            /* All checks passed — persist metadata so RA6M5 boots from Data Flash */
+            fwupdate_write_nvs_metadata(s_ctx.model_written_len, received_image_crc);
+
             s_ctx.state = FWUPDATE_STATE_DONE;
             send_ack(FWUPDATE_CMD_END);
             break;
