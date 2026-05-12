@@ -104,6 +104,9 @@ void UART_Init(UART_t uart, uint32_t baudrate)
 
     SCI_SCR(n)  = 0x00U;                                        /* disable TX/RX while configuring */
     SCI_SMR(n)  = 0x00U;                                        /* async, 8-bit, no parity, 1 stop */
+    SCI_SCMR(n) = SCI_SCMR_ASYNC_DEFAULT;                       /* explicit async-UART mode defaults */
+    SCI_SPMR(n) = 0x00U;                                        /* disable CTS/SPI smart modes       */
+    SCI_SNFR(n) = SCI_SNFR_LVL1;                                /* default filter level (NFEN=0)     */
 
 #if (OS_DEBUG_UART_BRR_DIVISOR == 4U)
     divisor = 4UL * baudrate;

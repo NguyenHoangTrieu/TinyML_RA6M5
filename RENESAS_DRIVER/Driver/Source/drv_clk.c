@@ -11,8 +11,11 @@
 #define CLK_SAFE_HOCO_ONLY 0U
 #define CLK_WAIT_TIMEOUT_LOOPS 2000000UL
 
-/* Global to track actual SCI source clock after CLK_Init (PCLKB for this project). */
-uint32_t g_actual_pclk_hz = 50000000UL;  /* default 50 MHz in production mode */
+/* Global to track actual SCI source clock after CLK_Init.
+ * RA6M5 SCI uses PCLKA (BSP_FEATURE_SCI_CLOCK = PCLKA):
+ *   Production:     PCLKA = 100 MHz  (PLL / 2)
+ *   HOCO fallback:  PCLKA =  48 MHz  (HOCO / 1) */
+uint32_t g_actual_pclk_hz = 100000000UL;  /* default: PCLKA = 100 MHz production mode */
 
 /* Global to track actual ICLK after CLK_Init (used by SysTick for timing calculation) */
 uint32_t g_actual_iclk_hz = 200000000UL;  /* default 200 MHz if production mode succeeds */
@@ -132,7 +135,7 @@ uint32_t CLK_GetActualICLK(void)
     return g_actual_iclk_hz;
 }
 
-/* Get the actual SCI clock used by UART BRR calculation (PCLKB domain). */
+/* Get the actual SCI clock used by UART BRR calculation (PCLKA domain on RA6M5). */
 uint32_t CLK_GetActualSCIClock(void)
 {
     return g_actual_pclk_hz;
@@ -220,8 +223,10 @@ void CLK_Init(void)
     SCKSCR = SCKSCR_PLL;
     (void)clk_configure_usbfs_clock();
 
-    /* Production clock tree: SCI source (PCLKB) = 50 MHz, ICLK = 200 MHz. */
-    g_actual_pclk_hz = 50000000UL;
+    /* Production clock tree: SCI source (PCLKA) = 100 MHz, ICLK = 200 MHz.
+     * RA6M5 SCI channels 0-9 are clocked from PCLKA (BSP_FEATURE_SCI_CLOCK = PCLKA).
+     * PCLKB = 50 MHz is NOT the SCI clock source on this device. */
+    g_actual_pclk_hz = 100000000UL;
     /* Update ICLK to production value (fallback not occurred) */
     g_actual_iclk_hz = 200000000UL;  /* Production: ICLK = 200 MHz */
 

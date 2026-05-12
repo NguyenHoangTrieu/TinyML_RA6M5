@@ -32,7 +32,10 @@
 #define SCI_TDR(n)   SCI_REG8(n, 0x03U)  /* Transmit Data Register        */
 #define SCI_SSR(n)   SCI_REG8(n, 0x04U)  /* Serial Status Register        */
 #define SCI_RDR(n)   SCI_REG8(n, 0x05U)  /* Receive Data Register         */
+#define SCI_SCMR(n)  SCI_REG8(n, 0x06U)  /* Smart Card Mode Register      */
 #define SCI_SEMR(n)  SCI_REG8(n, 0x07U)  /* Serial Extended Mode Register */
+#define SCI_SNFR(n)  SCI_REG8(n, 0x08U)  /* Noise Filter Setting Register */
+#define SCI_SPMR(n)  SCI_REG8(n, 0x0DU)  /* SPI Mode Register             */
 
 /* -----------------------------------------------------------------------
  * SCR bits (Serial Control Register)
@@ -62,10 +65,18 @@
 #define SEMR_BGDM (1U << 6)
 #define SEMR_ABCS (1U << 4)
 
+/*
+ * FSP programs SCMR to 0xF2 for normal asynchronous UART mode.
+ * This keeps the reserved bits and CHR1 field in the expected state for 8N1.
+ */
+#define SCI_SCMR_ASYNC_DEFAULT  0xF2U
+#define SCI_SNFR_LVL1           0x01U
+
 /* -----------------------------------------------------------------------
- * SCI peripheral clock used by this driver — PCLKB domain in this project.
- * Normally CLK_Init() configures PCLKB = 50 MHz (/4 from 200 MHz PLL).
- * If clock fallback to HOCO occurs, PCLKB = 48 MHz (/1 from HOCO).
+ * SCI peripheral clock used by this driver — PCLKA domain on RA6M5.
+ * (FSP: BSP_FEATURE_SCI_CLOCK = FSP_PRIV_CLOCK_PCLKA)
+ * Normally CLK_Init() configures PCLKA = 100 MHz (/2 from 200 MHz PLL).
+ * If clock fallback to HOCO occurs, PCLKA = 48 MHz (/1 from HOCO).
  * Use the dynamic global g_actual_pclk_hz set by CLK_Init().
  * ----------------------------------------------------------------------- */
 extern uint32_t g_actual_pclk_hz;
