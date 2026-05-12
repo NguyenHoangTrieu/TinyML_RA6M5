@@ -13,6 +13,9 @@
 #include "semaphore.h"
 #if USE_SENSOR_ZMOD4410
 #  include "drv_i2c.h"
+#  if USE_SENSOR_HS3001
+#    include "bsp_hs3001.h"
+#  endif
 #  include "bsp_zmod4410.h"
 #else
 #  include "sensor_simulator.h"
@@ -214,6 +217,19 @@ static void server_comm_send_published(int32_t tvoc_x10, int32_t actual_x100, in
     server_comm_send_cstr("\r\n");
 }
 
+#if USE_SENSOR_ZMOD4410 && USE_SENSOR_HS3001
+static void server_comm_send_sensor(uint32_t sample_id, int32_t temp_x10, int32_t humidity_x10)
+{
+    server_comm_send_cstr("[sensor:");
+    server_comm_send_u32(sample_id);
+    server_comm_send_cstr("] T=");
+    server_comm_send_fixed_1(temp_x10);
+    server_comm_send_cstr(" C  RH=");
+    server_comm_send_fixed_1(humidity_x10);
+    server_comm_send_cstr("%\r\n");
+}
+#endif
+
 static void task_server_comm_tx(void *arg)
 {
     int32_t tvoc_x10;
@@ -300,6 +316,19 @@ static void task_server_comm_iaq(void *arg)
         for (;;) { OS_Task_Delay(5000U); }
     }
     debug_print("[ZMOD4410_Init OK]\r\n");
+#  if USE_SENSOR_HS3001
+    {
+        HS3001_Status_t hs3001_status = HS3001_Init(I2C_SENSOR_BUS);
+        if (hs3001_status == HS3001_OK)
+        {
+            debug_print("[HS3001_Init OK]\r\n");
+        }
+        else
+        {
+            debug_print("[HS3001] Init probe failed: %u\r\n", (unsigned)hs3001_status);
+        }
+    }
+#  endif
 #else
     SensorSim_Init();
     debug_print("[SensorSim_Init OK]\r\n");
@@ -314,6 +343,40 @@ static void task_server_comm_iaq(void *arg)
         int32_t   predict_100;
 
 #if USE_SENSOR_ZMOD4410
+#  if USE_SENSOR_HS3001
+        static uint32_t sensor_sample = 0U;
+        {
+            HS3001_Data_t hs3001_data;
+            HS3001_Status_t hs3001_status = HS3001_Read(I2C_SENSOR_BUS, &hs3001_data);
+
+            if (hs3001_status == HS3001_OK)
+            {
+                int32_t temp_10 = server_comm_round_to_i32(hs3001_data.temperature_c * 10.0f);
+                int32_t humidity_10 = server_comm_round_to_i32(hs3001_data.humidity_pct * 10.0f);
+
+                (void)ZMOD4410_Set_Ambient_Conditions(I2C_SENSOR_BUS,
+                                                     hs3001_data.temperature_c,
+                                                     hs3001_data.humidity_pct);
+
+                debug_print("[sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n",
+                            (unsigned)sensor_sample,
+                            (int)(temp_10 / 10),
+                            (unsigned)(server_comm_abs_i32(temp_10) % 10U),
+                            (int)(humidity_10 / 10),
+                            (unsigned)(server_comm_abs_i32(humidity_10) % 10U));
+                server_comm_send_sensor(sensor_sample, temp_10, humidity_10);
+            }
+            else
+            {
+                debug_print("[sensor:%u] HS3001 err=%u\r\n",
+                            (unsigned)sensor_sample,
+                            (unsigned)hs3001_status);
+            }
+
+            sensor_sample++;
+        }
+#  endif
+
         /* ── Step 1: Trigger ─────────────────────────────────────────────── */
         debug_print("[ZMOD] Triggering...\r\n");
         zmod_status = ZMOD4410_Trigger_Measurement(I2C_SENSOR_BUS);
@@ -328,13 +391,11 @@ static void task_server_comm_iaq(void *arg)
         /* ── Step 2: Wait for measurement ready (STATUS bit7 = 0) ────────── */
         if (server_comm_wait_zmod_ready(I2C_SENSOR_BUS, ZMOD_READY_TIMEOUT_MS) == 0U)
         {
-            /* Timeout: STATUS never cleared. Fall back: attempt read anyway. */
-            debug_print("[ZMOD] STATUS timeout — reading ADC anyway\r\n");
+            debug_print("[IAQ] Skipping publish because ZMOD measurement never became ready\r\n");
+            OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
+            continue;
         }
-        else
-        {
-            debug_print("[ZMOD] STATUS ready\r\n");
-        }
+        debug_print("[ZMOD] STATUS ready\r\n");
 
         /* ── Step 3: Read ADC result ──────────────────────────────────────── */
         debug_print("[ZMOD] Reading ADC...\r\n");

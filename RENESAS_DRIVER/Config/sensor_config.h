@@ -22,6 +22,7 @@
   /* CK-RA6M5: Real sensors attached */
   #define USE_REAL_SENSORS    1
   #define USE_SENSOR_AHT20    1
+  #define USE_SENSOR_HS3001   1
   #define USE_SENSOR_ZMOD4410 1
   #define USE_SENSOR_SIMULATOR 0
 
@@ -29,6 +30,7 @@
   /* EK-RA6M5: No physical sensors, use simulator */
   #define USE_REAL_SENSORS    0
   #define USE_SENSOR_AHT20    0
+  #define USE_SENSOR_HS3001   0
   #define USE_SENSOR_ZMOD4410 0
   #define USE_SENSOR_SIMULATOR 1
 
@@ -68,6 +70,10 @@
 /* AHT20 Humidity/Temperature Sensor */
 #define AHT20_I2C_ADDRESS     0x38U
 #define AHT20_ENABLED         (USE_SENSOR_AHT20)
+
+/* HS3001 Humidity/Temperature Sensor */
+#define HS3001_I2C_ADDRESS    0x44U
+#define HS3001_ENABLED        (USE_SENSOR_HS3001)
 
 /* ZMOD4410 Air Quality Sensor */
 #define ZMOD4410_I2C_ADDRESS  0x32U

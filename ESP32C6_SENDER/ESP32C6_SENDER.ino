@@ -1,5 +1,5 @@
 ﻿/**
- * ESP32C6_SENDER.ino  â€”  IAQ UART-MQTT Bridge & OTA Model Updater
+ * ESP32C6_SENDER.ino  —  IAQ UART-MQTT Bridge & OTA Model Updater
  *
  * Roles:
  *   1. UART-to-MQTT Bridge: reads debug text lines from the RA6M5 UART and
@@ -13,21 +13,21 @@
  *      writes the model to Data Flash and switches to it on the next boot.
  *
  * UART1 wiring (ESP32-C6):
- *   TX = GPIO17  â†’  RA6M5 UART2 RX (P301)   â€” sends model OTA frames
- *   RX = GPIO16  â†  RA6M5 UART2 TX (P302)   â€” receives IAQ text + ACK/NACK
- *   GND â†’ GND  (common ground REQUIRED)
+ *   TX = GPIO17  →  RA6M5 UART2 RX (P301)   — sends model OTA frames
+ *   RX = GPIO16  ←  RA6M5 UART2 TX (P302)   — receives IAQ text + ACK/NACK
+ *   GND → GND  (common ground REQUIRED)
  *
  * Network topology:
- *   WiFi AP  â”€â”€  ESP32-C6  â”€â”€[UART]â”€â”€  RA6M5
- *                   â”‚
+ *   WiFi AP  ──  ESP32-C6  ──[UART]──  RA6M5
+ *                   │
  *              MQTT broker (localhost on the server PC, port 1883)
  *              FastAPI server (port 8000)
- *                   â”‚
- *              /api/v1/model/version  â†’ {"version": <uint32 file-size>}
- *              /api/v1/model/latest   â†’ binary TFLite flatbuffer
+ *                   │
+ *              /api/v1/model/version  → {"version": <uint32 file-size>}
+ *              /api/v1/model/latest   → binary TFLite flatbuffer
  *
  * OTA frame protocol (matches fwupdate_receiver.h on RA6M5):
- *   [STX 0x02][CMD][LEN_MSB][LEN_LSB][DATAâ€¦][CRC_MSB][CRC_LSB][ETX 0x03]
+ *   [STX 0x02][CMD][LEN_MSB][LEN_LSB][DATA…][CRC_MSB][CRC_LSB][ETX 0x03]
  *   CRC-16-CCITT (XMODEM): poly=0x1021, init=0xFFFF, no reflect.
  *   CMD_START(0x01) 4-byte big-endian total length
  *   CMD_DATA (0x02) up to 128 bytes per frame
@@ -44,13 +44,15 @@
 #include <Arduino.h>
 
 /* -----------------------------------------------------------------------
- * USER CONFIGURATION â€” edit before flashing
+ * USER CONFIGURATION — edit before flashing
  * ----------------------------------------------------------------------- */
-#define WIFI_SSID            "Devil"
-#define WIFI_PASSWORD        "hamhap7604"
+#define ENABLE_MCU_SIMULATION 1  /* Set to 1 to simulate MCU data for server testing */
+
+#define WIFI_SSID            "iphone"
+#define WIFI_PASSWORD        "12345678"
 
 /* IP / hostname of the machine running FastAPI and the MQTT broker */
-#define SERVER_IP            "192.168.1.100"
+#define SERVER_IP            "172.20.10.2"
 #define MQTT_BROKER_PORT     1883
 #define SERVER_BASE_URL      "http://" SERVER_IP ":8000"
 
@@ -60,8 +62,8 @@
 /* -----------------------------------------------------------------------
  * UART configuration
  * ----------------------------------------------------------------------- */
-#define UART1_TX_PIN         17
-#define UART1_RX_PIN         16
+#define UART1_TX_PIN         14
+#define UART1_RX_PIN         15
 #define UART_BAUD            115200UL
 
 /* Max length of one text line received from RA6M5 */
@@ -103,7 +105,7 @@
 static WiFiClient   s_wifi_client;
 static PubSubClient s_mqtt(s_wifi_client);
 
-/* Downloaded model buffer â€” allocated on first successful download */
+/* Downloaded model buffer — allocated on first successful download */
 static uint8_t *    s_model_buf     = nullptr;
 static uint32_t     s_model_buf_len = 0UL;
 
@@ -116,7 +118,7 @@ static volatile bool g_mqtt_ok  = false;
 static volatile bool g_ota_busy = false;
 
 /* =========================================================================
- * CRC-16-CCITT (XMODEM) â€” matches RA6M5 fwupdate_receiver exactly.
+ * CRC-16-CCITT (XMODEM) — matches RA6M5 fwupdate_receiver exactly.
  * Polynomial : 0x1021, Init : 0xFFFF, no input/output reflection.
  * ========================================================================= */
 static uint16_t crc16_ccitt(const uint8_t *data, uint32_t len)
@@ -138,15 +140,26 @@ static uint16_t crc16_ccitt(const uint8_t *data, uint32_t len)
  * ========================================================================= */
 static void wifi_connect(void)
 {
-    Serial.printf("[WiFi] Connecting to \"%s\"", WIFI_SSID);
+    Serial.printf("[WiFi] Connecting to \"%s\"...", WIFI_SSID);
+    WiFi.disconnect(true); // Xóa cấu hình cũ
+    delay(1000);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) {
+
+    uint8_t timeout = 0;
+    while (WiFi.status() != WL_CONNECTED && timeout < 20) { // Chờ tối đa 10 giây
         delay(500);
         Serial.print(".");
+        timeout++;
     }
-    Serial.printf("\n[WiFi] Connected â€” IP: %s\n", WiFi.localIP().toString().c_str());
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\n[WiFi] Connected — IP: %s\n", WiFi.localIP().toString().c_str());
+    } else {
+        Serial.println("\n[WiFi] Connection Failed. Check SSID/Password or Band (2.4GHz only).");
+    }
 }
+
 
 static void wifi_ensure(void)
 {
@@ -198,7 +211,7 @@ static bool line_is_iaq_data(const char *line)
 }
 
 /* =========================================================================
- * OTA UART protocol â€” send model binary to RA6M5
+ * OTA UART protocol — send model binary to RA6M5
  * ========================================================================= */
 static void ota_send_frame(uint8_t cmd, const uint8_t *data, uint16_t data_len)
 {
@@ -316,7 +329,7 @@ static bool ota_send_model(const uint8_t *model, uint32_t model_len)
         if (!ok) { Serial.println("[OTA] CMD_END verify failed"); return false; }
     }
 
-    Serial.println("[OTA] Transfer complete â€” RA6M5 verified and written to Data Flash");
+    Serial.println("[OTA] Transfer complete — RA6M5 verified and written to Data Flash");
     return true;
 }
 
@@ -325,7 +338,7 @@ static bool ota_send_model(const uint8_t *model, uint32_t model_len)
  * ========================================================================= */
 
 /**
- * Poll GET /api/v1/model/version â†’ {"version": <uint32>}
+ * Poll GET /api/v1/model/version → {"version": <uint32>}
  * The server returns the TFLite file size as the version token.
  * Returns 0 on error or if no model exists yet.
  */
@@ -572,6 +585,54 @@ static void task_ota_checker(void *arg)
     }
 }
 
+#if ENABLE_MCU_SIMULATION
+/**
+ * task_mcu_simulator -- injects test data strings into g_line_queue
+ * to verify server-side MQTT processing and database storage.
+ */
+static void task_mcu_simulator(void *arg)
+{
+    (void)arg;
+    static const char* s_sim_data[] = {
+        "[547034 ms] Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80",
+        "[548171 ms] [sensor:263] T=31.1 C  RH=46.9%",
+        "[550000 ms] [timer] LED2 toggles=1100",
+        "[550255 ms] [sensor:264] T=31.1 C  RH=46.3%",
+        "[552040 ms] [SensorSim_Read OK]",
+        "[552043 ms] [IAQ_Predict OK]",
+        "[552045 ms] Published: TVOC=144.8ppb | Actual=1.86 | Predict=1.80",
+        "[552339 ms] [sensor:265] T=31.1 C  RH=46.7%",
+        "[554423 ms] [sensor:266] T=31.1 C  RH=46.9%"
+    };
+    uint8_t line_idx = 0;
+    const uint8_t total_lines = sizeof(s_sim_data) / sizeof(s_sim_data[0]);
+
+    Serial.println("[SIM] Task started - waiting 10s for WiFi/MQTT...");
+    vTaskDelay(pdMS_TO_TICKS(10000));
+
+    for (;;) {
+        /* Only inject if MQTT is ready and we aren't doing an OTA update */
+        if (g_mqtt_ok && !g_ota_busy) {
+            const char* line = s_sim_data[line_idx];
+            
+            /* Allocate memory for the string to be passed via queue */
+            char *entry = (char *)malloc(strlen(line) + 1);
+            if (entry != nullptr) {
+                strcpy(entry, line);
+                if (xQueueSend(g_line_queue, &entry, pdMS_TO_TICKS(0)) == pdTRUE) {
+                    Serial.printf("[SIM] Injected simulated line: %s\n", line);
+                } else {
+                    free(entry); /* queue full */
+                }
+            }
+            line_idx = (line_idx + 1) % total_lines;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5000)); /* Inject one line every 5 seconds */
+    }
+}
+#endif
+
+
 /* =========================================================================
  * Arduino entry points
  * ========================================================================= */
@@ -600,6 +661,12 @@ void setup(void)
                             nullptr, 2U, nullptr, 0);
     xTaskCreatePinnedToCore(task_ota_checker, "ota_chk",  8192U,
                             nullptr, 1U, nullptr, 0);
+
+#if ENABLE_MCU_SIMULATION
+    xTaskCreatePinnedToCore(task_mcu_simulator, "mcu_sim", 4096U,
+                            nullptr, 1U, nullptr, 0);
+#endif
+
 
     Serial.println("[BOOT] All tasks started");
 }

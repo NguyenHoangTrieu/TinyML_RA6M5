@@ -284,9 +284,9 @@ static float zmod4410_rmox_from_adc(uint16_t raw_adc)
 
 static float zmod4410_tvoc_from_rmox(float rmox_ohm)
 {
-    /* Baseline resistance in clean air (typical ~50 kΩ for ZMOD4410).
+    /* Baseline resistance in clean air for this simplified formula is ~10 kOhm.
      * Replace with actual measured baseline for your deployment. */
-    const float RMOX_BASELINE = 50000.0f;
+    const float RMOX_BASELINE = 10000.0f;
     const float SENSITIVITY   = 3.0f;   /* slope in log space */
     const float OFFSET_PPB    = 50.0f;  /* TVOC at baseline   */
 
@@ -443,7 +443,8 @@ int ZMOD4410_Measurement_Ready(I2C_t i2c)
         return -(int)ZMOD4410_ERR_NACK;
     }
 
-    if ((status & STATUS_SEQUENCER_RUNNING) == 0U)
+    /* Bit 7 = 0 (Sequencer idle) OR Bit 3 = 1 (End of sequence / Data ready) */
+    if (((status & 0x80U) == 0U) || ((status & 0x08U) != 0U))
     {
         return 1;   /* done */
     }
