@@ -28,8 +28,8 @@
 #define IAQ_STARTUP_DELAY_MS      3000U
 #define IAQ_STARTUP_POLL_MS         10U
 #define IAQ_CYCLE_DELAY_MS        5000U
-#define ZMOD_READY_TIMEOUT_MS     4500U
-#define ZMOD_READY_POLL_MS         100U
+#define ZMOD_READY_TIMEOUT_MS    10000U  /* IAQ 2nd Gen: up to ~8 s per cycle */
+#define ZMOD_READY_POLL_MS          100U
 
 typedef struct {
     int32_t tvoc_x10;
@@ -297,35 +297,48 @@ static void task_server_comm_iaq(void *arg)
         int32_t   predict_100;
 
 #if USE_SENSOR_ZMOD4410
-        /* Trigger measurement, wait for ZMOD4410 IAQ_2ND_GEN sample time (3 s) */
+        /* ── Step 1: Trigger ─────────────────────────────────────────────── */
+        debug_print("[ZMOD] Triggering...\r\n");
         zmod_status = ZMOD4410_Trigger_Measurement(I2C_SENSOR_BUS);
         if (zmod_status != ZMOD4410_OK)
         {
-            debug_print("[IAQ] ZMOD trigger: %u\r\n", (unsigned)zmod_status);
+            debug_print("[IAQ] ZMOD trigger FAIL: %u\r\n", (unsigned)zmod_status);
             OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
             continue;
         }
+        debug_print("[ZMOD] Trigger OK, polling STATUS...\r\n");
 
+        /* ── Step 2: Wait for measurement ready (STATUS bit7 = 0) ────────── */
         if (server_comm_wait_zmod_ready(I2C_SENSOR_BUS, ZMOD_READY_TIMEOUT_MS) == 0U)
         {
-            OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
-            continue;
+            /* Timeout: STATUS never cleared. Fall back: attempt read anyway. */
+            debug_print("[ZMOD] STATUS timeout — reading ADC anyway\r\n");
+        }
+        else
+        {
+            debug_print("[ZMOD] STATUS ready\r\n");
         }
 
+        /* ── Step 3: Read ADC result ──────────────────────────────────────── */
+        debug_print("[ZMOD] Reading ADC...\r\n");
         ZMOD4410_Data_t zmod_data;
         zmod_status = ZMOD4410_Read(I2C_SENSOR_BUS, &zmod_data);
         if (zmod_status != ZMOD4410_OK)
         {
-            debug_print("[IAQ] ZMOD read: %u\r\n", (unsigned)zmod_status);
+            debug_print("[IAQ] ZMOD read FAIL: %u\r\n", (unsigned)zmod_status);
             OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
             continue;
         }
-        /* Use raw ADC bytes as TVOC proxy until the Renesas algo library is linked */
-        tvoc_f    = (float)(((uint16_t)zmod_data.raw_adc[0] << 8U) | (uint16_t)zmod_data.raw_adc[1]);
-        forecast  = IAQ_Predict(tvoc_f);
-        tvoc_10   = (int32_t)(tvoc_f * 10.0f);
-        actual_100 = 0;  /* no reference IAQ from raw sensor */
+        tvoc_f      = (float)zmod_data.tvoc_ppb;
+        forecast    = IAQ_Predict(tvoc_f);
+        tvoc_10     = (int32_t)(tvoc_f * 10.0f);
+        actual_100  = 0;
         predict_100 = (int32_t)(forecast * 100.0f);
+        debug_print("[ZMOD] TVOC=%u ppb adc=0x%02X%02X warmup=%u\r\n",
+                    (unsigned)zmod_data.tvoc_ppb,
+                    (unsigned)zmod_data.raw_adc[0],
+                    (unsigned)zmod_data.raw_adc[1],
+                    (unsigned)zmod_data.status);
         debug_print("[ZMOD_Read OK]\r\n");
 #else
         SensorPacket_t pkt = SensorSim_Read();

@@ -143,6 +143,7 @@ target_link_directories(${PROJECT_NAME}.elf
 
 target_link_libraries(${PROJECT_NAME}.elf
     PRIVATE
+    m   # math library — required for logf/powf in bsp_zmod4410.c (TVOC algorithm)
 )
 
 # ---------------------------------------------------------------------------
