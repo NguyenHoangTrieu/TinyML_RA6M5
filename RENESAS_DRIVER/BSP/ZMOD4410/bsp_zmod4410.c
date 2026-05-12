@@ -181,8 +181,7 @@ static uint8_t zmod4410_read_reg(I2C_t i2c, uint8_t reg, uint8_t *buf, uint8_t l
     if (!I2C_Transmit_Address(i2c, ZMOD4410_I2C_ADDR, I2C_READ))
     { I2C_Stop(i2c); return 0U; }
     if (!I2C_Master_Receive_Data(i2c, buf, len))
-    { I2C_Stop(i2c); return 0U; }
-    I2C_Stop(i2c);
+    { return 0U; } /* I2C_Stop called inside */
     return len;
 }
 
@@ -356,7 +355,7 @@ ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode)
     if (zmod4410_read_reg(i2c, REG_PID, pid_raw, 2U) == 0U)
     { debug_print("[ZMOD_Init] PID NACK\r\n"); return ZMOD4410_ERR_NACK; }
     pid = (uint16_t)(((uint16_t)pid_raw[0] << 8U) | pid_raw[1]);
-    debug_print("[ZMOD_Init] PID=0x%04X\r\n", (unsigned)pid);
+    debug_print("[ZMOD_Init] PID=0x%X\r\n", (unsigned)pid);
     if (pid != ZMOD4410_PRODUCT_ID)
     { debug_print("[ZMOD_Init] PID mismatch!\r\n"); return ZMOD4410_ERR_CONFIG; }
 
@@ -364,7 +363,7 @@ ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode)
     debug_print("[ZMOD_Init] Step4 CONF\r\n");
     if (zmod4410_read_reg(i2c, REG_CONF, g_config, 6U) == 0U)
     { return ZMOD4410_ERR_NACK; }
-    debug_print("[ZMOD_Init] CONF=%02X %02X %02X %02X %02X %02X\r\n",
+    debug_print("[ZMOD_Init] CONF=%X %X %X %X %X %X\r\n",
                 g_config[0],g_config[1],g_config[2],g_config[3],g_config[4],g_config[5]);
 
     /* Step 5 — read production data (7 bytes) from NVM */

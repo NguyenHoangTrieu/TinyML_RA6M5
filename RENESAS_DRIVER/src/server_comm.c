@@ -170,6 +170,23 @@ static void server_comm_send_fixed_2(int32_t value_x100)
     server_comm_send_u8((uint8_t)('0' + (abs_value % 10U)));
 }
 
+static float server_comm_tvoc_to_iaq(float tvoc_ppb)
+{
+    float iaq;
+    if (tvoc_ppb <= 65.0f) {
+        iaq = 1.0f + (1.0f / 65.0f) * tvoc_ppb;
+    } else if (tvoc_ppb <= 220.0f) {
+        iaq = 2.0f + (1.0f / 155.0f) * (tvoc_ppb - 65.0f);
+    } else if (tvoc_ppb <= 650.0f) {
+        iaq = 3.0f + (1.0f / 430.0f) * (tvoc_ppb - 220.0f);
+    } else if (tvoc_ppb <= 2200.0f) {
+        iaq = 4.0f + (1.0f / 1550.0f) * (tvoc_ppb - 650.0f);
+    } else {
+        iaq = 5.0f + (1.0f / 3300.0f) * (tvoc_ppb - 2200.0f);
+    }
+    return iaq;
+}
+
 static void server_comm_send_raw(int32_t tvoc_x10, int32_t eco2_x10)
 {
     server_comm_send_cstr("Raw: TVOC=");
@@ -332,9 +349,9 @@ static void task_server_comm_iaq(void *arg)
         tvoc_f      = (float)zmod_data.tvoc_ppb;
         forecast    = IAQ_Predict(tvoc_f);
         tvoc_10     = (int32_t)(tvoc_f * 10.0f);
-        actual_100  = 0;
+        actual_100  = (int32_t)(server_comm_tvoc_to_iaq(tvoc_f) * 100.0f);
         predict_100 = (int32_t)(forecast * 100.0f);
-        debug_print("[ZMOD] TVOC=%u ppb adc=0x%02X%02X warmup=%u\r\n",
+        debug_print("[ZMOD] TVOC=%u ppb adc=0x%X%X warmup=%u\r\n",
                     (unsigned)zmod_data.tvoc_ppb,
                     (unsigned)zmod_data.raw_adc[0],
                     (unsigned)zmod_data.raw_adc[1],
