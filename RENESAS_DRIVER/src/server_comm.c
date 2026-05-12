@@ -7,8 +7,16 @@
 #include "iaq_predictor.h"
 #include "kernel.h"
 #include "rtos_config.h"
-#include "sensor_simulator.h"
+#include "board_config.h"
+#include "sensor_config.h"
+#include "drv_clk.h"
 #include "semaphore.h"
+#if USE_SENSOR_ZMOD4410
+#  include "drv_i2c.h"
+#  include "bsp_zmod4410.h"
+#else
+#  include "sensor_simulator.h"
+#endif
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -20,6 +28,8 @@
 #define IAQ_STARTUP_DELAY_MS      3000U
 #define IAQ_STARTUP_POLL_MS         10U
 #define IAQ_CYCLE_DELAY_MS        5000U
+#define ZMOD_READY_TIMEOUT_MS     4500U
+#define ZMOD_READY_POLL_MS         100U
 
 typedef struct {
     int32_t tvoc_x10;
@@ -36,6 +46,35 @@ static Semaphore_t s_server_comm_tx_sem;
 static server_comm_ctx_t s_server_comm;
 static uint8_t s_server_comm_inited = 0U;
 
+#if USE_SENSOR_ZMOD4410
+static uint8_t server_comm_wait_zmod_ready(I2C_t i2c, uint32_t timeout_ms)
+{
+    uint32_t waited_ms = 0U;
+
+    while (waited_ms < timeout_ms)
+    {
+        int ready = ZMOD4410_Measurement_Ready(i2c);
+
+        if (ready > 0)
+        {
+            return 1U;
+        }
+
+        if (ready < 0)
+        {
+            debug_print("[IAQ] ZMOD ready poll error: %d\r\n", ready);
+            return 0U;
+        }
+
+        OS_Task_Delay(ZMOD_READY_POLL_MS);
+        waited_ms += ZMOD_READY_POLL_MS;
+    }
+
+    debug_print("[IAQ] ZMOD ready timeout after %u ms\r\n", (unsigned)timeout_ms);
+    return 0U;
+}
+#endif
+
 static int32_t server_comm_round_to_i32(float val)
 {
     if (val >= 0.0f)
@@ -48,16 +87,12 @@ static int32_t server_comm_round_to_i32(float val)
 
 static void server_comm_uart_init(void)
 {
-#if OS_DEBUG_BACKEND_USB_CDC
-    /* debug_print() uses USB CDC in this build, so the SCI channel used for
-     * Arduino must be brought up explicitly here. */
-    UART_Init((UART_t)OS_DEBUG_UART_CHANNEL, OS_DEBUG_UART_BAUDRATE);
-#endif
+    UART_Init((UART_t)SERVER_COMM_UART_CHANNEL, SERVER_COMM_UART_BAUDRATE);
 }
 
 static void server_comm_send_u8(uint8_t b)
 {
-    UART_SendChar((UART_t)OS_DEBUG_UART_CHANNEL, (char)b);
+    UART_SendChar((UART_t)SERVER_COMM_UART_CHANNEL, (char)b);
 }
 
 static void server_comm_send_cstr(const char *text)
@@ -211,10 +246,11 @@ static void task_server_comm_rx(void *arg)
 
 static void task_server_comm_iaq(void *arg)
 {
-    uint32_t startup_wait_ms = 0U;
     (void)arg;
 
 #if OS_DEBUG_BACKEND_USB_CDC
+    uint32_t startup_wait_ms = 0U;
+
     while ((startup_wait_ms < IAQ_STARTUP_DELAY_MS) && (USB_Dev_IsConfigured() == 0U))
     {
         OS_Task_Delay(IAQ_STARTUP_POLL_MS);
@@ -234,36 +270,89 @@ static void task_server_comm_iaq(void *arg)
     }
 
     debug_print("[IAQ Task] Init OK. Starting 5s forecast loop...\r\n");
+
+#if USE_SENSOR_ZMOD4410
+    /* Use the board-configured sensor bus so scan/init/read stay aligned. */
+    uint8_t pclkb_mhz = (uint8_t)(CLK_GetActualSCIClock() / 1000000U);
+    ZMOD4410_Status_t zmod_status;
+    I2C_Init(I2C_SENSOR_BUS, pclkb_mhz, I2C_SENSOR_SPEED);
+    zmod_status = ZMOD4410_Init(I2C_SENSOR_BUS, IAQ_2ND_GEN);
+    if (zmod_status != ZMOD4410_OK)
+    {
+        debug_print("[IAQ] ZMOD4410 init failed: %u. Task halted.\r\n", (unsigned)zmod_status);
+        for (;;) { OS_Task_Delay(5000U); }
+    }
+    debug_print("[ZMOD4410_Init OK]\r\n");
+#else
     SensorSim_Init();
     debug_print("[SensorSim_Init OK]\r\n");
+#endif
 
     for (;;)
     {
+        float     tvoc_f;
+        float     forecast;
+        int32_t   tvoc_10;
+        int32_t   actual_100;
+        int32_t   predict_100;
+
+#if USE_SENSOR_ZMOD4410
+        /* Trigger measurement, wait for ZMOD4410 IAQ_2ND_GEN sample time (3 s) */
+        zmod_status = ZMOD4410_Trigger_Measurement(I2C_SENSOR_BUS);
+        if (zmod_status != ZMOD4410_OK)
+        {
+            debug_print("[IAQ] ZMOD trigger: %u\r\n", (unsigned)zmod_status);
+            OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
+            continue;
+        }
+
+        if (server_comm_wait_zmod_ready(I2C_SENSOR_BUS, ZMOD_READY_TIMEOUT_MS) == 0U)
+        {
+            OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
+            continue;
+        }
+
+        ZMOD4410_Data_t zmod_data;
+        zmod_status = ZMOD4410_Read(I2C_SENSOR_BUS, &zmod_data);
+        if (zmod_status != ZMOD4410_OK)
+        {
+            debug_print("[IAQ] ZMOD read: %u\r\n", (unsigned)zmod_status);
+            OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
+            continue;
+        }
+        /* Use raw ADC bytes as TVOC proxy until the Renesas algo library is linked */
+        tvoc_f    = (float)(((uint16_t)zmod_data.raw_adc[0] << 8U) | (uint16_t)zmod_data.raw_adc[1]);
+        forecast  = IAQ_Predict(tvoc_f);
+        tvoc_10   = (int32_t)(tvoc_f * 10.0f);
+        actual_100 = 0;  /* no reference IAQ from raw sensor */
+        predict_100 = (int32_t)(forecast * 100.0f);
+        debug_print("[ZMOD_Read OK]\r\n");
+#else
         SensorPacket_t pkt = SensorSim_Read();
-        float forecast = IAQ_Predict(pkt.tvoc);
-
-        int32_t tvoc_10 = (int32_t)(pkt.tvoc * 10.0f);
-        int32_t actual_100 = (int32_t)(pkt.iaq_reference * 100.0f);
-        int32_t predict_100 = (int32_t)(forecast * 100.0f);
-
-        int t_int = (int)(tvoc_10 / 10);
-        int t_frac = (int)(tvoc_10 % 10);
-
-        int a_int = (int)(actual_100 / 100);
-        int a_frac1 = (int)((actual_100 % 100) / 10);
-        int a_frac2 = (int)(actual_100 % 10);
-
-        int p_int = (int)(predict_100 / 100);
-        int p_frac1 = (int)((predict_100 % 100) / 10);
-        int p_frac2 = (int)(predict_100 % 10);
-
+        forecast   = IAQ_Predict(pkt.tvoc);
+        tvoc_f     = pkt.tvoc;
+        tvoc_10    = (int32_t)(tvoc_f * 10.0f);
+        actual_100 = (int32_t)(pkt.iaq_reference * 100.0f);
+        predict_100 = (int32_t)(forecast * 100.0f);
         debug_print("[SensorSim_Read OK]\r\n");
-        debug_print("[IAQ_Predict OK]\r\n");
-        debug_print("Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
-                    t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
+#endif
 
-        /* Keep USB debug on debug_print(), and mirror the server-compatible
-         * payload to the Arduino UART as plain ASCII text. */
+        debug_print("[IAQ_Predict OK]\r\n");
+
+        {
+            int t_int  = (int)(tvoc_10 / 10);
+            int t_frac = (int)(tvoc_10 % 10);
+            int a_int  = (int)(actual_100 / 100);
+            int a_frac1 = (int)((actual_100 % 100) / 10);
+            int a_frac2 = (int)(actual_100 % 10);
+            int p_int  = (int)(predict_100 / 100);
+            int p_frac1 = (int)((predict_100 % 100) / 10);
+            int p_frac2 = (int)(predict_100 % 10);
+            debug_print("Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
+                        t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
+        }
+
+        /* Mirror server-compatible payload to Arduino UART */
         server_comm_send_published(tvoc_10, actual_100, predict_100);
 
         OS_Task_Delay(IAQ_CYCLE_DELAY_MS);

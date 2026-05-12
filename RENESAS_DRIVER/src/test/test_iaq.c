@@ -140,5 +140,6 @@ void test_iaq_inference_init(void) {
  */
 void test_iaq_register(void) {
   test_register("IAQ", test_iaq_case);
-  test_iaq_inference_init();
+  /* Removed test_iaq_inference_init() here to prevent running duplicate
+   * IAQ tasks. The IAQ polling is now exclusively handled by server_comm_iaq. */
 }

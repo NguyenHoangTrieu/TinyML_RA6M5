@@ -21,9 +21,9 @@
  *     0xAA CMD_ACK    — frame accepted (1-byte payload: echo of CMD)
  *     0xFF CMD_NACK   — error (1-byte payload: error code)
  *
- * UART channel used: same channel as legacy debug UART (configurable via
- * FWUPDATE_UART_CHANNEL, default OS_DEBUG_UART_CHANNEL).
- * Baud rate: FWUPDATE_UART_BAUDRATE (default OS_DEBUG_UART_BAUDRATE).
+ * UART channel used: same channel as the server/ESP32 bridge (configurable via
+ * FWUPDATE_UART_CHANNEL, default SERVER_COMM_UART_CHANNEL).
+ * Baud rate: FWUPDATE_UART_BAUDRATE (default SERVER_COMM_UART_BAUDRATE).
  *
  * RX path is polled from fwupdate_receiver_run() for easy reuse of the old
  * debug wiring without extra NVIC/vector coupling.
@@ -36,11 +36,11 @@
 #include "rtos_config.h"
 
 #ifndef FWUPDATE_UART_CHANNEL
-#define FWUPDATE_UART_CHANNEL  OS_DEBUG_UART_CHANNEL
+#define FWUPDATE_UART_CHANNEL  SERVER_COMM_UART_CHANNEL
 #endif
 
 #ifndef FWUPDATE_UART_BAUDRATE
-#define FWUPDATE_UART_BAUDRATE OS_DEBUG_UART_BAUDRATE
+#define FWUPDATE_UART_BAUDRATE SERVER_COMM_UART_BAUDRATE
 #endif
 
 /* -----------------------------------------------------------------------

@@ -60,8 +60,8 @@
 /* -----------------------------------------------------------------------
  * UART configuration
  * ----------------------------------------------------------------------- */
-#define UART1_TX_PIN         14
-#define UART1_RX_PIN         15
+#define UART1_TX_PIN         17
+#define UART1_RX_PIN         16
 #define UART_BAUD            115200UL
 
 /* Max length of one text line received from RA6M5 */

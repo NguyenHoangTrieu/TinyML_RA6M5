@@ -1,0 +1,2986 @@
+Datasheet
+ZMOD4410
+Gas Sensor Module for TVOC and Indoor Air Quality
+
+Description
+
+Features
+
+The ZMOD4410 Gas Sensor Module is designed for
+easy implementation to detect total volatile organic
+compounds (TVOC), estimate CO2, and monitor indoor
+air quality (IAQ). The module works reliably in various
+conditions, including very humid and dusty applications
+with the possibility of water spray, condensation, or
+immersion. The small LGA assembly consists of a gas
+sensing element and a CMOS signal conditioning IC.
+The sensing element is a Si-based microhotplate with a
+robust and highly sensitive metal oxide (MOx)
+chemiresistor. The signal conditioner ASIC controls the
+sensor temperatures and measures the MOx
+conductivity, which is a function of the gas
+concentration. The measurement results are easily read
+using an I2C interface with the user’s microprocessor,
+which processes the data.
+
+■
+
+■
+
+High sensitivity to Hydrogen (H2) based on resistance
+output
+
+The firmware configurable platform quickly enables
+different ZMOD4410 features based on machine
+learning algorithms and embedded artificial
+intelligence (AI) with Renesas pre-trained models and
+algorithms. This is used to determine and output TVOC
+concentration, IAQ rating according to UBA, estimated
+carbon dioxide (eCO2) level, and a relative IAQ rating
+based on total VOC. Alternate algorithms and firmware
+implementations can output an absolute TVOC
+concentration to meet Public Building Air
+Quality (PBAQ) standards, odor level changes, and
+discrimination between sulfur-based odors. With the
+ultra-low operating current consumption
+implementation, the ZMOD4410 is an excellent choice
+for low-voltage and ultra-low power battery applications.
+
+■
+
+Ultra-low power (ULP) consumption down to 200µW
+
+■
+
+Siloxane resistant
+
+■
+
+JEDEC JESD47 qualified for 10 years lifetime
+
+■
+
+Supply voltage: 1.7V to 3.6V
+
+■
+
+RoHS compliant
+
+■
+
+Operating temperature -40°C to 85°C
+Water and dustproof version available (IP67 certified)
+Package: 12-LGA. Available assembly sizes:
+● 3.0 × 3.0 × 0.7 mm (standard version)
+● 3.0 × 3.0 × 0.9 mm (for IP67 version)
+
+Typical Applications
+■
+
+Indoor air monitoring to meet UBA and typical Public
+Building Air Quality (PBAQ) standards
+
+■
+
+Monitor home, office, personal, and bathroom
+environments for healthy conditions and comfort
+
+■
+
+Detect hazardous materials and unhealthy
+conditions (for example, fumes from construction
+materials)
+
+■
+
+Automation based on indoor ambient air quality
+(HVAC, air purifiers, thermostats, kitchen hoods, etc.)
+
+■
+
+Ideal for indoor and outdoor applications
+(wearables, health bands, etc.)
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+■
+■
+
+Sensor output based on AI machine learning
+algorithmic:
+●
+
+Absolute measurement of total organic
+compounds (TVOC) concentrations and indoor air
+quality (IAQ) to meet UBA air quality standard
+
+●
+
+Absolute TVOC output to meet Public Building Air
+Quality (PBAQ) standards
+
+●
+
+Relative IAQ output based on TVOC and odor
+changes
+
+●
+
+Estimated carbon dioxide level (eCO2)
+
+●
+
+Algorithm to discriminate sulfur-based odors
+
+●
+
+Compensation of environmental influences like
+humidity, temperature, and oxidizing gases
+
+Available Support
+■
+
+Evaluation kits for USB and PMODTM board
+
+■
+
+Manuals, application notes, blog, and white papers,
+instructional videos
+
+■
+
+Firmware with example codes, API, pre-compiled
+libraries, and algorithm support
+
+■
+
+Third-party certified compliance with
+international IAQ standards and best available
+technology for eCO2
+
+Figure 1. ZMOD4410 Gas Sensor
+
+Page 1
+© 2018-2025 Renesas Electronics
+
+ZMOD4410 Datasheet
+
+Contents
+1.
+
+2.
+
+3.
+
+4.
+
+5.
+
+Overview........................................................................................................................................................4
+1.1
+
+Block Diagram ......................................................................................................................................4
+
+1.2
+
+Application Circuit .................................................................................................................................4
+
+Pin Information .............................................................................................................................................5
+2.1
+
+Pin Assignments ...................................................................................................................................5
+
+2.2
+
+Pin Descriptions....................................................................................................................................5
+
+Specifications ...............................................................................................................................................6
+3.1
+
+Absolute Maximum Ratings ..................................................................................................................6
+
+3.2
+
+Electrical Characteristics ......................................................................................................................7
+
+Description of Operation Modes and Related Outputs .............................................................................9
+4.1
+
+IAQ Levels According to UBA .............................................................................................................10
+
+4.2
+
+TVOC for Air Quality Standards..........................................................................................................11
+
+4.3
+
+Relative IAQ Output............................................................................................................................11
+
+4.4
+
+Estimated Carbon Dioxide Correlation (eCO2)....................................................................................12
+
+4.5
+
+Sulfur-based Odor Discrimination (Sulfur Odor) .................................................................................13
+
+4.6
+
+Sensor Module Algorithm and Firmware.............................................................................................13
+
+Sensor Module Characteristics .................................................................................................................14
+5.1
+
+General Characteristics ......................................................................................................................14
+
+5.2
+
+Sensitivity, Accuracy and Consistency ...............................................................................................15
+
+5.3
+
+Conditioning, Sensor Self-Check Status, and Stability .......................................................................17
+
+5.4
+
+Environmental Influences ...................................................................................................................18
+
+6.
+
+Assembly Restrictions, Operation, Integration Notes, and Storage ......................................................19
+
+7.
+
+Test and Calibration ...................................................................................................................................20
+
+8.
+
+I2C Interface and Data Transmission Protocol .........................................................................................21
+
+9.
+
+Related Information ....................................................................................................................................23
+
+10. Glossary ......................................................................................................................................................23
+11. Package Outline Drawings.........................................................................................................................24
+12. Marking Diagrams.......................................................................................................................................24
+13. Ordering Information ..................................................................................................................................25
+14. Revision History .........................................................................................................................................25
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 2
+
+ZMOD4410 Datasheet
+
+Figures
+Figure 1. ZMOD4410 Gas Sensor .......................................................................................................................... 1
+Figure 2. Block Diagram ......................................................................................................................................... 4
+Figure 3. Application Circuit.................................................................................................................................... 4
+Figure 4. Pin Assignments for 12-LGA Module – Top View.................................................................................... 5
+Figure 5. TVOC Measurement According to Typical PBAQ Standards using ZMOD4410 ................................... 11
+Figure 6. Scale of the Relative IAQ ...................................................................................................................... 12
+Figure 7. Comparison of IAQ and Relative IAQ .................................................................................................... 12
+Figure 8. Typical Graph of CO2 Estimation in an Application................................................................................ 13
+Figure 9. Typical ZMOD4410 Response to Levels of TVOC Described by UBA Using EPA Standard Mixture.... 15
+Figure 10. IAQ Accuracy and Consistency ........................................................................................................... 16
+Figure 11. Concentration Dependent Accuracy for eCO2 .................................................................................... 16
+Figure 12. ZMOD4410 Typical Response Time and Signal Stability for TVOC Exposure .................................... 18
+Figure 13. Humidity Influence at Three Different TVOC Concentrations .............................................................. 18
+Figure 14. Typical Solder Profile........................................................................................................................... 20
+Figure 15. I2C Data Transmission Protocol........................................................................................................... 21
+Figure 16. Bus Timing .......................................................................................................................................... 22
+
+Tables
+Table 1. Pin Descriptions........................................................................................................................................ 5
+Table 2. Absolute Maximum Ratings ...................................................................................................................... 6
+Table 3. Electrical Characteristics .......................................................................................................................... 7
+Table 4. Overview of Output and Properties for Different Operation Modes........................................................... 9
+Table 5. Sample Rates, Warm-Up Samples and Time for ZMOD4410 Operation Modes ...................................... 9
+Table 6. Level of Indoor Air Quality Based on TVOC Levels Described by UBA .................................................. 10
+Table 7. Gas Sensor Module Specifications During Operation............................................................................. 14
+Table 8. Typical ZMOD4410 Sensor Module Performances ................................................................................ 16
+Table 9. Typical Sensor Requirement to Meet a PBAQ Standard ........................................................................ 16
+Table 10. Final Test Parameters .......................................................................................................................... 20
+Table 11. Bus Timing Characteristic ..................................................................................................................... 22
+Table 12. Package Options .................................................................................................................................. 24
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 3
+
+ZMOD4410 Datasheet
+
+1. Overview
+1.1
+
+Block Diagram
+
+Note: For definitions of abbreviations, see “Glossary.”
+VDDH
+VDD2
+TST
+Mux
+
+ZMOD4410
+Sensor Module
+
+CM
+
+Bias
+Bandgap
+Vref
+Current
+LV
+Regulator
+
+Temp
+Sensor
+
+Analog
+
+VDD
+
+Temp
+Amp
+
+VDD2
+
+Regulator
+
+POR
+
+VDDIO
+
+Vref
+R-string
+vrefp
+agnd
+vrefn
+
+Digital
+
+Clock
+
+VDD
+
+R/V
+
+RS
+
+Mux
+
+Converter
+
+ADC
+
+System
+Control and
+Sequencer
+
+SDA
+
+I2C
+
+SCL
+RES_N
+INT
+
+Memory
+Heater
+Driver
+
+Heater
+
+MOx
+Element
+
+RH
+
+VSS
+
+Figure 2. Block Diagram
+
+1.2
+
+Application Circuit
+VSS
+
+VSS
+
+VDD
+
+Power
+Supply
+
+VDDH
+
+INT
+RES_N
+ZMOD4410
+Gas Sensor Module
+
+SDA
+
+Host MCU
+
+SCL
+
+VDD
+VDDH
+INT
+RES_N
+
+SDA
+ZMOD4510
+Gas Sensor
+Module
+(Recommended)
+
+SCL
+
+VDD
+Humidity Sensor
+(Recommended)
+
+VSS
+
+VSS
+
+Figure 3. Application Circuit
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 4
+
+ZMOD4410 Datasheet
+
+2. Pin Information
+2.1
+
+Pin Assignments
+VSS
+
+DNC
+
+VSS
+
+9
+
+8
+
+7
+
+VDDH
+
+10
+
+6
+
+VSS
+
+RES_N
+
+11
+
+5
+
+VDD
+
+VDDIO
+
+12
+
+4
+
+DNC
+
+Pin 1
+Corner
+
+1
+
+2
+
+3
+
+SCL
+
+SDA
+
+INT
+
+Figure 4. Pin Assignments for 12-LGA Module – Top View
+
+2.2
+
+Pin Descriptions
+Table 1. Pin Descriptions
+
+Pin Number
+
+Name
+
+Type
+
+1
+
+SCL
+
+Input
+
+2
+
+SDA
+
+Input/Output
+
+Description
+Serial clock for the I2C interface.
+Serial data for the I2C interface. Default 7-bit slave address: 32HEX.
+Interrupt signal (push-pull):
+
+3
+
+INT
+
+Output
+
+ HIGH when a measurement is running
+ LOW when a measurement has finished
+Note: Use edge detection on falling edge!
+
+4
+
+DNC
+
+-
+
+5
+
+VDD
+
+Supply
+
+Voltage supply for the ZMOD4410.
+
+6
+
+VSS
+
+Ground
+
+Ground reference for the ZMOD4410.
+
+7
+
+VSS
+
+Ground
+
+Ground reference for the ZMOD4410.
+
+8
+
+DNC
+
+-
+
+9
+
+VSS
+
+Ground
+
+Ground reference for the ZMOD4410.
+
+10
+
+VDDH
+
+Supply
+
+Voltage supply for the integrated heater in the ZMOD4410.
+
+11
+
+RES_N
+
+Input
+
+ZMOD4410 reset; active low.
+
+12
+
+VDDIO
+
+Supply
+
+Voltage supply for I/O-interface in ZMOD4410.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Do not connect.
+
+Do not connect.
+
+Page 5
+
+ZMOD4410 Datasheet
+
+3. Specifications
+3.1
+
+Absolute Maximum Ratings
+
+Caution: The absolute maximum ratings are stress ratings only. The ZMOD4410 may not be operable outside
+the recommended operating conditions in Table 2. Stresses exceeding the absolute maximum ratings will
+change the sensor module accuracy, lead to imprecision, and eventually cause irreversible damage to the
+device. In addition, extended exposure to stresses above the recommended operating conditions may affect
+device reliability. Renesas does not recommend designing to the “Absolute Maximum Ratings”.
+Note: The reference for all voltages is VSS.
+Table 2. Absolute Maximum Ratings
+Symbol
+
+Parameter
+
+Minimum
+
+Maximum
+
+Unit
+
+VDD, VDDH, VDDIO
+
+Maximum Analog and I/O Supply Voltage
+
+-0.4
+
+3.63
+
+V
+
+VA_IO, VD_IO
+
+Maximum Voltage at all Analog and Digital I/O Pins
+
+-0.5
+
+VDDIO + 0.5
+
+V
+
+Maximum Difference in Voltage between VDD and VDDH Pins
+
+-
+
+0.4
+
+V
+
+-100
+
+100
+
+mA
+
+IIN
+
+Input Current into any Pin except Supply Pins (Latch-Up
+Immunity)
+
+VHBM1
+
+Electrostatic Discharge Tolerance – Human Body Model (HBM)
+
+-
+
+2000
+
+V
+
+VCDM
+
+Electrostatic Discharge Tolerance – Charged Device Model
+(CDM) on Packaged Module
+
+-
+
+750
+
+V
+
+TAMB-MAX
+
+Maximum Ambient Temperature Range of Sensor Module
+
+-40
+
+125
+
+°C
+
+TSTOR
+
+Storage Temperature
+
+-50
+
+125
+
+°C
+
+TOPERATION
+
+Operation Temperature of Sensing Element [1]
+
+-
+
+550
+
+°C
+
+1.
+
+Controlled via API in firmware and EVK software.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 6
+
+ZMOD4410 Datasheet
+
+3.2
+
+Electrical Characteristics
+
+The following values are valid at operating conditions unless noted otherwise.
+Note: The reference for all voltages is VSS.
+Table 3. Electrical Characteristics
+Symbol
+
+VDD
+
+PAVG
+
+IPEAK
+
+IAVG
+
+IAVG
+
+IAVG
+
+Parameter
+
+Conditions
+
+Recommended Supply Voltage
+
+Average Power
+
+Peak Supply Current
+
+Average Supply Current
+
+Average Supply Current
+
+Average Supply Current
+
+Minimum Typical Maximum
+
+Unit
+
+1.7
+
+-
+
+3.6
+
+V
+
+IAQ 2nd Gen and Sulfur Odor
+operation [1]
+VDD = 1.8V
+
+-
+
+5.95
+
+-
+
+mW
+
+ULP operation [1]
+VDD = 1.8V
+
+-
+
+0.197
+
+-
+
+mW
+
+PBAQ operation [1]
+VDD = 1.8V
+
+-
+
+0.98
+
+-
+
+mW
+
+VDD = 1.8V
+
+-
+
+26.99
+
+-
+
+mA
+
+VDD = 3.3V
+
+-
+
+16.32
+
+-
+
+mA
+
+IAQ 2nd Gen and Sulfur Odor
+operation [1]
+VDD = 1.8V
+
+-
+
+3.31
+
+-
+
+mA
+
+IAQ 2nd Gen and Sulfur Odor
+operation [1]
+VDD = 3.3V
+
+-
+
+2.32
+
+-
+
+mA
+
+ULP operation [1]
+VDD = 1.8V
+
+-
+
+0.109
+
+-
+
+mA
+
+ULP operation [1]
+VDD = 3.3V
+
+-
+
+0.078
+
+-
+
+mA
+
+PBAQ operation [1]
+VDD = 1.8V
+
+-
+
+0.546
+
+-
+
+mA
+
+PBAQ operation [1]
+VDD = 3.3V
+
+-
+
+0.385
+
+-
+
+mA
+
+ISLEEP
+
+Current during measurement delays
+
+Sleep Mode ASIC
+
+-
+
+450
+
+-
+
+nA
+
+PSRR
+
+Power Supply Rejection Ratio
+
+VDD ≥ 2.0V
+
+-
+
+30
+
+-
+
+dB
+
+At room temperature; for timings
+derived from the internal clock.
+
+-2
+
+-
+
+2
+
+%
+
+Over-temperature range; for timings
+derived from the internal clock.
+
+-0.1
+
+-
+
+0.1
+
+%/K
+
+Timing Accuracy
+(Valid for Measurements Only,
+Sleep Timer is ±20%)
+rADC
+
+ADC Resolution
+
+-
+
+10
+
+-
+
+16
+
+Bit
+
+tSTA1
+
+Start-up Time: VDD Ramp up to
+Interface Communication
+
+-
+
+-
+
+-
+
+1
+
+ms
+
+fC,I2C
+
+I2C Clock Frequency
+
+-
+
+-
+
+-
+
+400
+
+kHz
+
+tVPP
+
+NVM Programming Time
+
+-
+
+-
+
+6
+
+16
+
+ms
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 7
+
+ZMOD4410 Datasheet
+
+Symbol
+
+tRET_FTP
+
+Parameter
+Data Retention
+
+Conditions
+
+Minimum Typical Maximum
+
+85°C junction temperature
+
+10
+
+-
+
+-
+
+years
+
+1000
+
+-
+
+-
+
+cycles
+
+-
+
+NVM Programming Cycles
+
+-
+
+Default I2C Communication Address
+
+7-bit slave address
+
+-
+
+32HEX
+
+-
+
+-
+
+-
+
+Blocking Capacitor for Power Supply
+
+Ceramic type; recommended to be
+placed close to gas sensor module
+
+100
+
+-
+
+-
+
+nF
+
+VIH
+
+Logic Voltage Level High
+
+Applies for RES_N, SCL, and SDA
+
+0.7*
+VDDIO
+
+-
+
+-
+
+-
+
+VIL
+
+Logic Voltage Level Low
+
+Applies for RES_N, SCL, and SDA
+
+-
+
+-
+
+0.3*
+VDDIO
+
+-
+
+1.
+
+-
+
+Unit
+
+Operation modes are explained in Description of Operation Modes and Related Outputs.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 8
+
+ZMOD4410 Datasheet
+
+4. Description of Operation Modes and Related Outputs
+The ZMOD architecture leverages different “Methods of Operation” (Operation Modes), which use time,
+temperature, and signatures from gases that enable unique signals from a highly trained machine learning
+system and makes use of embedded artificial intelligence (AI) technology. This section discusses the different
+operation modes of the ZMOD4410 as well as their corresponding outputs and properties. An overview is
+provided in Table 4.
+The following operation modes and corresponding firmware packages are released [1]:
+■
+
+IAQ 2nd Gen: IAQ and TVOC Firmware – 2nd generation algorithms (recommended for new designs)
+
+■
+
+ULP: IAQ and TVOC Firmware for Ultra-Low Power
+
+■
+
+PBAQ: IAQ and TVOC Firmware for Public Building Air Quality (PBAQ) Standards
+
+■
+
+Sulfur Odor: Sulfur-based Odor Discrimination Firmware
+
+Note: On one physical device only one operation mode should run continuously. Switching of modes should not
+be done during device operation.
+Table 4. Overview of Output and Properties for Different Operation Modes
+Output
+
+Properties
+
+IAQ Rating
+
+TVOC
+[mg/m³]
+and [ppm]
+
+eCO2
+[ppm]
+
+Relative
+IAQ Rating
+
+Odor
+Intensity
+Level and
+Classifier
+
+Raw
+Resistance
+Signal
+[Ohm]
+
+Ultra-low
+Power
+
+Support
+Building
+Standards
+
+IAQ 2nd
+Gen
+
+
+
+
+
+
+
+
+
+-
+
+
+
+-
+
+-
+
+ULP
+
+
+
+
+
+
+
+
+
+-
+
+
+
+
+
+-
+
+PBAQ
+
+
+
+[1]
+
+-
+
+
+
+-
+
+
+
+-
+
+
+
+Sulfur Odor
+
+-
+
+-
+
+-
+
+-
+
+
+
+
+
+-
+
+-
+
+Operation
+Mode
+
+1.
+
+Due to low TVOC concentrations expected for PBAQ operation, the concentration is given in [µg/m³] and [ppb].
+
+By default, the IAQ 2nd Gen operation should be used for new designs due to best accuracy over wide TVOC
+detection range compared to other operation modes. Table 5 provides an overview of recommended ZMOD4410
+operation modes including their sample rate and the warm-up (stabilization) samples after each power-on. The
+warm-up times are fixed, and algorithm results should be considered only after the warm-up.
+Table 5. Sample Rates, Warm-Up Samples and Time for ZMOD4410 Operation Modes
+Operation Mode
+
+Sample Rate [Seconds]
+
+Warm-Up Samples Upon Start
+
+Warm-Up Time [Minutes]
+
+IAQ 2nd Gen
+
+3
+
+60
+
+3
+
+ULP
+
+90
+
+10
+
+15
+
+PBAQ
+
+5
+
+36
+
+3
+
+Sulfur Odor
+
+3
+
+60
+
+3
+
+1
+The previous IAQ 1st Generation, IAQ 1st Generation Low Power and Odor operation modes are legacy and not recommended for new
+designs.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 9
+
+ZMOD4410 Datasheet
+The following sections provide information on TVOC gases, concentrations, and thresholds given by the German
+Federal Environmental Agency (UBA)[2] and the US Environmental Protection Agency (EPA) and for Public
+Building Standards. These standards provide reliable information on indoor air quality and recommendations for
+air improvements if necessary. Furthermore, the non-standardized relative IAQ output and the CO2 estimation is
+described. All graphs and information show the typical responses that are to be expected from the sensor
+module upon exposure to a variety of test conditions.
+
+4.1
+
+IAQ Levels According to UBA
+
+The IAQ 2nd Gen, ULP, and PBAQ algorithms provided for the user’s microprocessor use the output from the
+ZMOD4410 to determine the level of TVOC gases present (see ZMOD4410 Programming Manual – Read Me;
+see also section 4.6). The algorithms feature an automated baseline correction function, ensuring that the
+module can learn from its environment and distinguish elevated levels of TVOC under all conditions. The
+proprietary metal oxide (MOx) used in the sensor module allows it to respond effectively to changing TVOC
+levels during long-term operation.
+Renesas has adopted the definition of TVOCs and their impact on user health and comfort proposed by the UBA
+(see Table 6). The ZMOD4410 can detect the presence of elevated TVOC levels as described in the UBA
+study.[2]
+There are many sources of poor indoor air quality that can elevate TVOC levels in the typical home or office
+environments, and the types of TVOC that might be present can vary widely. Additional information on this topic
+is available in Renesas’ ZMOD4410 White Paper – Overview of TVOC and Indoor Air Quality.
+Table 6. Level of Indoor Air Quality Based on TVOC Levels Described by UBA
+Renesas IAQ
+Rating
+
+Reference
+Level
+
+≤ 1.9
+
+Level 1
+
+Clean Hygienic Air
+(target value)
+
+2.0 to 2.9
+
+Level 2
+
+3.0 to 3.9
+
+TVOC (mg/m3) [1]
+
+Air Quality
+
+< 0.3
+
+Very Good
+
+Good Air Quality
+(if no threshold value is exceeded)
+
+0.3 to 1.0
+
+Good
+
+Level 3
+
+Noticeable Comfort Concerns
+(not recommended for exposure > 12
+months)
+
+1.0 to 3.0
+
+Medium
+
+4.0 to 4.9
+
+Level 4
+
+Significant Comfort Issues
+(not recommended for exposure > 1 month)
+
+3.0 to 10.0
+
+Poor
+
+≥ 5.0
+
+Level 5
+
+Unacceptable Conditions
+(not recommended)
+
+> 10.0
+
+Bad
+
+1.
+
+Air Information
+
+Conversion from mg/m3 to ppm for many common TVOC is by the factor approximately 0.5 (for example, 10mg/m3 equals
+approximately 5ppm). Conversion from ppm to ppb and from mg/m³ to µg/m³ is by the factor 1000 (for example, 0.1ppm equals
+100ppb).
+
+Umweltbundesamt, Beurteilung von Innenraumluftkontaminationen mittels Referenz- und Richtwerten, (Bundesgesundheitsblatt Gesundheitsforschung - Gesundheitsschutz, 2007).
+
+2
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 10
+
+ZMOD4410 Datasheet
+
+4.2
+
+TVOC for Air Quality Standards
+
+The TVOC output for IAQ 2nd Gen operation is tailored to the ranges described by UBA (compare with Table 6).
+While the PBAQ operation mode is used for absolute measurements of TVOC to meet Public Building Air
+Quality (PBAQ) standards released globally.[3][4] PBAQ standards promote health, cognitive scores, and wellbeing in buildings. Several aspects of environmental parameters are evaluated, including TVOC.
+TVOC sensors must have very high resolution in the low µg/m3 (ppb) concentration range, which is fulfilled using
+the Renesas ZMOD4410 gas sensor module with the PBAQ algorithm firmware. A comparison with a reference
+is shown in Figure 5 and ranges are described in section 5.2.
+
+Figure 5. TVOC Measurement According to Typical PBAQ Standards using ZMOD4410
+
+The downloadable firmware and evaluation kit software for the ZMOD4410 allows it to meet different Public
+Building Air Quality standards. However, it should be highlighted that PBAQ standards usually require calibration
+of the final product itself. In addition, all sensors measuring air quality parameters need to be recalibrated or
+replaced annually. To receive the Renesas PBAQ Calibration Guidelines with detailed information on calibration
+procedure, contact Renesas via the contact information on the website. An additional parameter provided is the
+relative IAQ output to enable further possibilities of accreditation.
+
+4.3
+
+Relative IAQ Output
+
+The relative IAQ output is available for IAQ 2nd Gen, ULP, and PBAQ mode. The advantage of this output is an
+easy establishment of threshold limits to trigger actions (for example, turn on a fan for ventilation) in which case
+no absolute TVOC concentration readings are needed. Also, this algorithm behaves similar to the human nose,
+in which small concentration changes are rapidly detected with high sensitivity while very slow changes are
+suppressed. The sensor will react immediately to all TVOC, but the algorithm uses a time constant of 24 hours
+for a full decay. In the case where no change in air quality takes place within this time, the algorithm will
+
+3
+IWBI, WELL Performance Verification Guidebook (International WELL Building Institute PBC), 2023.
+For more information about the WELL standard, see WELL; for information about the WELL specification, see specification.
+4
+Regenerative Ecological, Social, and Economic Targets (RESET), Air Standards for Accredited Monitors v2.0, 2018.
+For more information about the RESET standard, see RESET; for information about the RESET specification, see specification.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 11
+
+ZMOD4410 Datasheet
+converge to an index of 100. This scale index is defined in the style of the EPA scale for Outdoor Air Quality [5]
+as shown in Figure 6.
+
+Figure 6. Scale of the Relative IAQ
+
+Figure 7 provides a comparison of the IAQ output (see section 4.1) and the Relative IAQ output for a week of
+data collection in an indoor environment. Events such as opening a window during the day and night and trends
+in TVOC are clearly visible on both outputs. While the Relative IAQ appears smoother, it is more sensitive to
+changes in TVOC and begins to adapt (decrease) at high TVOC exposures over time.
+IAQ
+
+Figure 7. Comparison of IAQ and Relative IAQ
+
+4.4
+
+Estimated Carbon Dioxide Correlation (eCO2)
+
+A very reliable correlation can be made based on TVOC levels for situations where an elevated carbon
+dioxide (CO2) concentration is caused by human occupancy, although the sensor module is not directly
+responsive to CO2. Renesas has developed a robust, patent pending, correlation algorithm between elevated
+TVOCs and CO2 attributable to human occupancy in a wide variety of living spaces, including homes and offices.
+The measurement range for the eCO2 has its minimum at the atmospheric background level at 400ppm and
+ranges up to 5000ppm. The correlation can predict the CO2 level as shown in Figure 8. Additional details about
+Renesas’ CO2 correlation algorithm are available in the ZMOD4410 Application Note – Estimating Carbon
+Dioxide. The Estimated Carbon Dioxide output is available for IAQ 2nd Gen and ULP operation mode.
+
+5
+
+For more information on Outdoor Air Quality and how to detect it, see the ZMOD4510 product page.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 12
+
+ZMOD4410 Datasheet
+
+Figure 8. Typical Graph of CO2 Estimation in an Application
+
+4.5
+
+Sulfur-based Odor Discrimination (Sulfur Odor)
+
+The Sulfur Odor operation mode can be used to identify whether a sulfur-smelling odor is present. When the
+target gas families have been defined through analysis, a sweeping method allows for chemical discrimination. A
+machine learning embedded artificial intelligence (AI) algorithm makes use of a MOx surface temperature array
+to get to a selectivity approach.
+This operation mode classifies the odors in “sulfur” (sulfur-based) and “acceptable” (organic based) and shows
+an intensity level of the smell. Acceptable odors are, for example, originate from air refreshers, soaps, perfumes,
+etc., while bad smelling sulfur-based odors originate from personal odors in bathrooms. Because impression of
+smell is very unique, there may be overlaps with how people perceive odors. To integrate this in an algorithm, a
+highly trained Neural Network is using typical chemical signatures from Hydrogen sulfide (H2S) and Dimethyl
+sulfide (DMS, C2H6S). A range of organic sulfur compounds are considered from the low ppb to the ppm range.
+The typical sample rate is 3 seconds, but the algorithm may need a few samples for the correct classification.
+The Sulfur Odor firmware was developed based on known commercially available products that represent both
+bad and acceptable odors. Other places with unknown chemical signatures can lead to incorrect algorithm
+results. Training the sensor module and developing the discrimination for other gases and applications may be
+considered for future releases.
+
+4.6
+
+Sensor Module Algorithm and Firmware
+
+To operate the ZMOD4410, the software and libraries provided by Renesas should be used. The algorithm for
+the user’s microprocessor always uses the raw output signals from the ZMOD4410, which are resistances, to
+determine the level of gases present. Depending on the microprocessor and compiler used, the firmware and its
+algorithms require 20 to 40 kB flash size. All algorithms feature an automated baseline correction function,
+ensuring that the module can learn from its environment and distinguish elevated levels of gases under all
+conditions. The proprietary metal oxide (MOx) used in the sensor ensures that the sensor module can respond
+effectively to changing TVOC during long-term operation. Thus, the user focus should always be on the relevant
+output parameters: The IAQ level according to UBA, the TVOC concentration (available in mg/m3 and as Ethanol
+equivalent in ppm), and/or the estimation of carbon dioxide (eCO2).
+For implementing the sensor module in a customer-specific application, detailed information on the programming
+is available. More information and guidance on the firmware integration, architecture, and supported platforms
+are available in the ZMOD4410 Programming Manual - Read Me. Code Examples in C and additional firmware
+descriptions for API, HAL, libraries, etc., are included at no cost in the downloadable firmware package from the
+ZMOD4410 product page.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 13
+
+ZMOD4410 Datasheet
+
+5. Sensor Module Characteristics
+This section describes general sensor module specific characteristics like measurement and operational ranges.
+In addition, details for accuracy, sensitivity, reliability, sample rates, and sensor module influences are explained
+in detail in the following sections. Additional technical information on sensitivity, selectivity, and stability for all
+operation modes is available in Renesas’ ZMOD4410 Application Note – TVOC Sensing.
+
+5.1
+
+General Characteristics
+
+The ZMOD4410 Gas Sensor Module is designed to detect typical TVOC contaminations based on studies and
+international standards for indoor air quality. In parallel to TVOC detection, it also responds impressively, but not
+selectively, to Hydrogen (H2) in the full parts-per-million range. General characteristic module parameters are
+shown in Table 7. The response time for a gas stimulation is always within a few seconds, depending on the
+specific gas molecule and its concentration. An active or direct airflow onto the sensor module is not necessary
+because diffusion of ambient gas does not limit the sensor module’s response time.
+Table 7. Gas Sensor Module Specifications During Operation
+Symbol
+
+Parameter
+
+-
+
+Raw Resistance Measurement
+Range
+
+-
+
+-
+
+Minimum
+
+Typical
+
+Maximum
+
+Unit
+
+Ethanol or Hydrogen in air
+
+0
+
+-
+
+1000
+
+ppm [1]
+
+IAQ and TVOC specified
+Measurement Range to meet
+UBA [2]
+
+Ethanol in air
+
+160
+
+-
+
+10000
+
+ppb [1]
+
+IAQ and TVOC specified
+Measurement Range for PBAQ
+
+Ethanol in air
+
+1
+
+-
+
+2000
+
+µg/m3
+
+Compensated TVOC increase after
+stimulation with oxidizing gas
+(10ppb ozone) [3]
+
+-
+
+0
+
+-
+
+ppm
+
+Uncompensated TVOC increase
+after stimulation with oxidizing gas
+(10ppb ozone)
+
+-
+
+1.2
+
+-
+
+ppm
+
+All ZMOD operations except PBAQ
+operation, Non-condensing
+
+0
+
+-
+
+90
+
+% RH
+
+Specification to meet PBAQ,
+Non-condensing
+
+-
+
+50
+
+-
+
+% RH
+
+Qualified maximum temperature
+range without hardware damage
+
+-40
+
+-
+
++85
+
+°C
+
+All operation modes except PBAQ,
+Non-condensing
+
+-40
+
+-
+
++65
+
+°C
+
+Specification according to PBAQ,
+Non-condensing
+
+-
+
+21
+
+-
+
+°C
+
+Samples needed to change to 80%
+of end value (all operation modes
+except ULP)
+
+-
+
+15
+
+-
+
+Samples
+
+Cross-sensitivity on TVOC
+output
+
+-
+
+RHAMB
+
+TAMB_O
+
+TAMB_A
+
+T-80
+
+Humidity Range for Sensor
+Module Operation
+Temperature Range for Sensor
+Module Operation
+Temperature Range for
+Algorithm Operation
+
+Sensor Module Response Time
+
+[4]
+
+Conditions
+
+1.
+
+Conversion from mg/m3 to ppm for many common TVOC is by the factor approximately 0.5 (for example, 10mg/m3 equals
+approximately 5ppm). Conversion from ppm to ppb is by the factor 1000 (for example, 0.1ppm equals 100ppb).
+
+2.
+
+Source: Umweltbundesamt, Beurteilung von Innenraumluftkontaminationen mittels Referenz- und Richtwerten,
+(Bundesgesundheitsblatt – Gesundheitsforschung – Gesundheitsschutz, 2007).
+
+3.
+
+For compensation, the gas sensor ZMOD4510 is needed.
+
+4.
+
+Response times depend on TVOC gas and concentration.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 14
+
+ZMOD4410 Datasheet
+Important: The ZMOD4410 also can detect safety-relevant gases for indoor air, such as carbon monoxide (CO);
+however, the sensor module is not designed to detect these interferants reliably and therefore it is not approved
+for use in any safety-critical or life-protecting applications. It must not be used in such applications, and Renesas
+disclaims all liability for any such use.
+
+5.2
+
+Sensitivity, Accuracy and Consistency
+
+All Renesas gas sensor modules come with electrical and chemical factory calibration with data stored in the
+module’s nonvolatile memory (NVM). Using the algorithms provided by Renesas and the calibration coefficients
+in the NVM will lead to stable measurement of the IAQ levels according to UBA discussed in section 4.1 with a
+maximum deviation of ±1 category over the module’s lifetime.
+The ZMOD4410 can respond reliably to all types of organic compounds that are typically found in indoor
+environments. To assess the response of the gas sensor module to the levels described in the UBA study, the
+module has been tested using several TO-15/17 multi-component TVOC standards defined by the EPA. The
+ZMOD4410 response to the EPA standard with the TVOC levels from UBA is shown in Figure 9. A third-party
+report and certification from an independent research lab are available on the Renesas website that confirms the
+good conformity for IAQ measurements with respect to the UBA study and EPA standard.
+
+Figure 9. Typical ZMOD4410 Response to Levels of TVOC Described by UBA Using EPA Standard Mixture
+
+Note: TVOC is a subset comprising 25 of the EPA’s TO-15/17 certified mixtures.
+Typical IAQ accuracy and consistency in an appropriate system implementation are displayed in Table 8 and
+Figure 10. The accuracy for Renesas eCO2 algorithm was verified on more than 20000 measurements and is
+shown in Figure 11. To meet a PBAQ standard a TVOC sensor must fulfill a specification as typically seen in
+Table 9.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 15
+
+ZMOD4410 Datasheet
+Table 8. Typical ZMOD4410 Sensor Module Performances
+Parameter
+
+Conditions
+
+Minimum
+
+Typical
+
+Maximum
+
+Unit
+
+Accuracy for IAQ
+
+Full UBA range [1]
+
+-
+
+±1
+
+-
+
+IAQ
+
+Accuracy for IAQ Ultra-Low Power
+
+Full UBA range [2]
+
+-
+
+±1
+
+-
+
+IAQ
+
+Consistency for IAQ
+
+Part-to-Part Variation [3]
+
+-
+
+± 10
+
+-
+
+%
+
+1.
+
+With a 95% confidence based on more than 26500 measurements with 280 sensor modules.
+
+2.
+
+With 82% confidence based on more than 3500 measurements with 104 sensor modules.
+
+3.
+
+Based on more than 30000 measurements with 380 sensor modules.
+
+Figure 10. IAQ Accuracy and Consistency
+
+Figure 11. Concentration Dependent Accuracy for eCO2 6
+Table 9. Typical Sensor Requirement to Meet a PBAQ Standard
+Parameter
+
+Unit
+
+Typical Range
+
+Typical Accuracy
+
+Resolution
+
+Calibration Gas
+
+TVOC
+
+ppb or µg/m3
+
+1 to 2000 µg/m3 [1]
+
+(± 20 µg/m3 + 15%) at 1 to 1000 µg/m3
+
+1 µg/m3
+
+Ethanol
+
+1.
+
+6
+
+Maximum output for this algorithm capped at 6000µg/m³.
+
+eCO2 accuracy can only be achieved if no artificial or non-human VOC sources are present.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 16
+
+ZMOD4410 Datasheet
+
+5.3
+
+Conditioning, Sensor Self-Check Status, and Stability
+
+The cleaning conditions the sensor material and helps to remove contaminants (for example, solder flux and
+vapors). The cleaning process takes 1 minute [7]. Cleaning can only be performed once during the lifetime of the
+sensor and is recommended after PCB assembly (for example, during final production test or at the end
+customer). The cleaning function automatically ensures that cleaning is performed only once. This is done by
+writing a control bit into the sensor module's NVM. It is important not to interrupt the cleaning process while it is
+running.
+The ZMOD4410 will respond to TVOC immediately upon start-up; however, a conditioning period of at least 48
+hours of continuous operation in an ambient environment is recommended to improve stability and obtain
+maximum performance.
+The sensor module has a self-check for its general functionality. With every measurement the algorithm
+performs an internal check of resistances to identify potential damage (in other words, a damage error). If a
+damage error lasts longer than 60 minutes then the following are possible reasons:
+■
+
+Improper or open solder contacts
+
+■
+
+High contamination on sensor material surface
+
+■
+
+Broken MEMS membrane
+
+■
+
+MOx material delamination
+
+■
+
+Oxygen depletion on sensor surface
+
+■
+
+Sometimes an extremely high VOC stimulation can cause a damage error output
+
+The following measures can solve this issue:
+■
+
+Check your production to ensure proper soldering. Use a proper soldering paste with correct temperature
+profile (see Assembly Restrictions, Operation, Integration Notes, and Storage).
+
+■
+
+Find the source of sensor surface contamination during production (for example, solder vapors, cleaning
+chemicals) and try to avoid them. Make sure to have executed the cleaning procedure after the assembly.
+
+■
+
+Make sure the sensor module’s vent hole is not blocked because of protection paints or high dust/dirt
+accumulation.
+
+■
+
+Do not use or store the sensor in an atmosphere without oxygen (for example, pure nitrogen).
+
+Note: The self-check functionality is not available for the Sulfur-Odor Discrimination operation mode.
+
+7
+
+For Sulfur Odor operation the cleaning takes 10 minutes.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 17
+
+ZMOD4410 Datasheet
+Figure 12 shows the ZMOD4410 sensor module’s raw data response to clean air with 30%RH and its response
+to 5ppm, 10ppm, and 20ppm ethanol mixed in clean air. The sensor module signal is a very stable, fast
+changing, and repeatable sensor module signal with a high sensitivity.
+
+Figure 12. ZMOD4410 Typical Response Time and Signal Stability for TVOC Exposure
+
+5.4
+
+Environmental Influences
+
+Although the ZMOD4410 sensor module is tested, qualified, and functional in the range of -40°C to +85°C, the
+best performance according to its calibration is achieved in the temperature range of 0°C to +40°C. Figure 13
+shows the module’s response to variations in the range from 15% to 65% relative humidity for different ethanol
+concentrations.
+
+Figure 13. Humidity Influence at Three Different TVOC Concentrations
+
+Temperature or relative humidity compensation are not required but are recommended for best performance.
+Use a humidity and temperature sensor in conjunction with the ZMOD4410 whenever possible. If relative
+humidity and temperature values are provided to the algorithm, the ZMOD4410 automatically uses these values
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 18
+
+ZMOD4410 Datasheet
+for compensation. If no humidity and temperature sensor is available, provide the algorithm with the default
+temperature = -300°C. This enables the internal temperature measurement of the ZMOD4410. If no humidity
+data is provided, this parameter is recommended to be set to 50% RH for standard indoor applications. The
+Sulfur Odor Discrimination algorithm does not support or require any temperature or humidity compensation.
+For some environments, an interference response to siloxanes is of concern; however, the ZMOD4410 has
+proven to be resistant against siloxanes. A maximum potential lifetime exposure has been simulated in all
+ZMOD4410 operation modes by applying the chemicals D4 (octamethylcyclotetrasiloxane) and D5
+(decamethylcyclopentasiloxane) in high concentration for several hundred hours. For more information on test
+conditions and results, see ZMOD4410 Application Note – TVOC Sensing.
+Outdoor air including oxidizing gases may interfere with the ZMOD4410’s TVOC reading. In this use case,
+Renesas also recommends using the sensor module ZMOD4510 Gas Sensor for Ozone and Nitrogen Dioxide
+for compensation. ZMOD4410 can identify oxidizing gases with the help of ZMOD4510 and reduce the influence
+on their outputs.8 The compensation is automatically activated after 30 minutes. 9 For most indoor environments
+this compensation is not necessary since these gases occur mainly outdoors and are not stable indoors.
+
+6. Assembly Restrictions, Operation, Integration Notes, and
+Storage
+When implementing the ZMOD4410 in electrical circuit boards a gas sensor module may react to chemicals
+during the assembly process and to outgassing components, such as resins from the printed circuit board (PCB)
+assembly. A standard soldering profile can be used to assemble the ZMOD4410 on the user’s PCB and should
+fulfill the IPC/JEDEC J-STD-020C Standard (“Moisture/Reflow Sensitivity Classification for Non-hermetic Solid
+State Surface Mount Devices”). A typical lead-free reflow solder profile is shown in Figure 14. After assembly, an
+outgassing of the PCB and electronic components must be considered, especially when operating the sensor
+module at elevated temperatures. This will ultimately influence the sensor module signal and may dominate the
+air quality reading.
+A PCB heat treatment before assembling the ZMOD4410 is recommended. After the gas sensor module
+assembly, no coating, cleaning, or ultrasonic bath should be applied to the PCB. A cleaning cycle should be
+executed when the sensor module is the first time on power to remove contaminations from assembly or storage
+of sensor module parts. This thermal MOx cleaning will remove major contaminations of solder vapor from the
+MOx surface. In the case where the sensor module does not show full performance after a cleaning cycle, a
+change to the protection sticker package is recommended (see Ordering Information). Store the sensor module
+in an antistatic metallic bag with a low TVOC background after the sensor module is removed from its original
+packaging or the assembled PCB is populated. The optimal storage conditions are < 1ppm TVOC, < 10ppb O3,
+< 10ppb NO2, 10°C to 50°C, and humidity levels within 20% to 80%RH. If the sensor is stored within these
+conditions, no sensor degradation is expected for a shelf life of at least 10 years (storage time). If the sensor
+module is stored outside of these conditions for extended periods of time, the readings can exhibit a temporary
+offset. The sensor module can be reconditioned and brought back to its calibration state by operating for 24
+hours to 48 hours in clean air.
+Note: The sensor must not be stored in pure nitrogen. This will lead to sensor failure.
+
+8
+9
+
+The Sulfur Odor mode does not have this feature.
+For ULP mode the compensation is activated after 15 minutes.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 19
+
+ZMOD4410 Datasheet
+To receive the complete Renesas Environmental Sensor Guidelines with detailed information on assembly,
+material outgassing, test and validation procedures, contact Renesas via the Technical Support page. A short
+version is available on the product webpage.
+
+Figure 14. Typical Solder Profile
+
+7. Test and Calibration
+As a unique feature, all sampled gas sensor modules are fully tested during Renesas’ final test. The final test
+parameters in Table 10 are applied for each ZMOD4410. All sensor modules are pre-stabilized in the final test
+although the user may see a small change in the module’s signal during an initial warm-up phase during the first
+operation. The gas sensor module qualification is based on JEDEC (JESD47) and its subsequent standard
+(JESD22, JESD78, etc.); it has been qualified for a lifetime of 10 years. Renesas has proven a MOx lifetime of
+over 20+ years in actual continuous operation in conditions without exposures to stressful environments.
+Table 10. Final Test Parameters
+Parameters
+
+Test Results
+Saved in NVM?
+
+Test
+
+Test Object
+
+Electrical
+
+ASIC
+
+Voltages, current consumption, frequencies, scan pattern
+
+No
+
+Electrical
+
+Module
+
+Calibration conditions, tracking ID, resistances
+
+Yes
+
+Gas
+
+Module
+
+Sensitivity parameters (slope and intercept) at stimulation with different gas
+concentrations
+
+Yes
+
+Gas
+
+Module
+
+Pre-stabilization
+
+No
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 20
+
+ZMOD4410 Datasheet
+
+8. I2C Interface and Data Transmission Protocol
+The I2C slave device interface supports various bus speeds: Standard Mode (≤ 100kHz) and Fast Mode
+(≤ 400kHz).
+By default, the 7-bit slave address for the serial I2C data interface is set to 32HEX. The implemented data
+transmission protocol is similar to the one used for conventional EEPROM devices. The register to read/write is
+selected by a register address pointer. This address pointer must be set during an I2C write operation. For read
+access, a repeated START condition but no STOP condition should be sent. After transmission of a register, the
+address pointer is automatically incremented. A STOP condition ends the whole transmission. An increment
+from the address FFHEX rolls over to 00HEX. The bus clear procedure (in other words, send nine clock pulses) is
+not implemented. To use a bus clear, the ZMOD4410’s RES_N pin must be kept low while sending the nine
+clock pulses. I2C bus scans must stay within a valid range below reserved address 0x78.
+For an example of the I2C data transmission protocol, see Figure 15. For information on I2C bus timing, see
+Figure 16. For I2C bus characteristics, see Table 11, which explains how to set up the interface. All other values
+are according to the I2C standard. Although the ZMOD4410 has an I2C interface, the user is not intended to
+modify any registers because a configuration change will affect the sensor module’s performance, reliability, and
+accuracy. The API provided with the downloadable firmware package on the website manages all necessary
+sensor module communication.
+To validate the general MCU-specific I2C read/write driver without the use of Renesas libraries, write random
+values to registers 0x88 to 0x8B and read them afterwards. After this register testing, erase the testing code and
+reset the device by disconnecting the power support; otherwise the device may not operate properly.
+WRITE Access RAM
+S
+
+Slave Addr
+7 Bit
+
+0 A
+
+Address
+
+A
+
+Data
+8 Bit
+
+A
+
+Data
+8 Bit
+
+A
+
+...
+
+Data
+8 Bit
+
+A P
+
+Data
+8 Bit
+
+A
+
+Write
+
+READ Access NVM and RAM
+S
+
+Slave Addr
+7 Bit
+
+0 A
+
+Address
+8 Bit
+
+A S
+
+Slave Addr
+7 Bit
+
+Write
+
+1 A
+
+Data
+8 Bit
+
+A
+
+...
+
+Data
+8 Bit
+
+N P
+
+Read
+
+From master to slave
+
+S
+
+START condition
+
+A
+
+Acknowledge
+
+From slave to master
+
+P
+
+STOP condition
+
+N
+
+Not acknowledge
+
+Figure 15. I2C Data Transmission Protocol
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 21
+
+ZMOD4410 Datasheet
+
+SDA
+tLOW
+
+tBUS
+
+tHDSTA
+
+tSUDAT
+
+SCL
+tHDSTA
+
+tHDDAT
+
+tHIGH
+
+tSUSTO
+
+tSUSTA
+
+Figure 16. Bus Timing
+Table 11. Bus Timing Characteristic
+Parameter
+
+Symbol
+
+Standard Mode
+
+Fast Mode
+
+Unit
+
+Maximum SCL clock frequency
+
+fSCL
+
+100
+
+400
+
+kHz
+
+Minimum START condition hold time relative to SCL edge
+
+tHDSTA
+
+0.1
+
+0.1
+
+µs
+
+Minimum SCL clock low width
+
+tLOW
+
+0.2
+
+0.3
+
+µs
+
+Minimum SCL clock high width
+
+tHIGH
+
+0.1
+
+0.1
+
+µs
+
+Minimum START condition setup time relative to SCL edge
+
+tSUSTA
+
+0.1
+
+0.1
+
+µs
+
+Minimum data hold time on SDA relative to SCL edge
+
+tHDDAT
+
+0
+
+0
+
+µs
+
+Minimum data setup time on SDA relative to SCL edge
+
+tSUDAT
+
+0.1
+
+0.1
+
+µs
+
+Minimum STOP condition setup time on SCL
+
+tSUSTO
+
+4
+
+0.6
+
+µs
+
+Minimum bus free time between stop condition and start condition
+
+tBUS
+
+4.7
+
+1.3
+
+µs
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 22
+
+ZMOD4410 Datasheet
+
+9. Related Information
+Visit the ZMOD4410 and ZMOD4410 Evaluation Kit (ZMOD4410-EVK) product pages to download software and
+the latest version of related documents, such as application notes, white papers, product briefs, and third-party
+reports.
+Note that some documents require logging in with a free customer account, which can be set up under the “LOG
+IN” button on www.renesas.com. Some downloads require an additional step to complete a request form that
+appears when the link is clicked.
+If additional support is needed for downloading, contact Renesas via the Technical Support page.
+
+10. Glossary
+Term
+
+Description
+
+ADC
+
+Analog-to-Digital Converter
+
+AI
+
+Artificial Intelligence
+
+CDM
+
+Charged Device Model
+
+CM
+
+Common Mode Generator
+
+HBM
+
+Human Body Model
+
+IAQ 1st Gen
+
+Indoor Air Quality algorithm using traditional computing methods (legacy)
+
+IAQ 2nd Gen
+
+Indoor Air Quality algorithm using machine learning AI
+
+LGA
+
+Land Grid Array
+
+LV
+
+Low Voltage
+
+MOx
+
+Metal Oxide
+
+MSL
+
+Moisture Sensitivity Level
+
+Mux
+
+Multiplexer
+
+n.a.
+
+Not Applicable
+
+NC
+
+Do not connect
+
+NVM
+
+Nonvolatile Memory
+
+PBAQ
+
+Public Building Air Quality
+
+POR
+
+Power-On Reset
+
+SDA
+
+Serial Data
+
+SCL
+
+Serial Clock
+
+SSC
+
+Sensor Signal Conditioner
+
+TST
+
+Test
+
+TVOC
+
+Total Volatile Organic Compounds
+
+UBA
+
+Umweltbundesamt (German Federal Environmental Agency)
+
+ULP
+
+Ultra-Low Power
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Page 23
+
+ZMOD4410 Datasheet
+
+11. Package Outline Drawings
+The ZMOD4410’s different packages are listed in Table 12.
+Table 12. Package Options
+Part Number
+
+Version
+
+Comment
+
+Package Link
+
+ZMOD4410AI1
+
+Standard
+
+Standard package
+
+ZMOD4410AI2
+
+Sticker
+
+This package shipped with a sticker on top of the lid to protect sensor
+during assembly. Note: The sticker has to be removed after assembly.
+
+ZMOD4410AI3
+
+Waterproof
+
+This package uses a membrane to get IP67 rating.
+
+ZMOD4410AI4
+
+Waterproof +
+Sticker
+
+This package uses a membrane to get IP67 rating and is shipped with
+a sticker on top of the lid to protect sensor during assembly. Note: The
+sticker has to be removed after assembly.
+
+LGG12D1 package
+
+LGG12D2 package
+
+12. Marking Diagrams
+Without membrane (ZMOD4410AI1 and -AI2)
+■
+
+Line 1 is the truncated part
+number. “X” is the package
+version.
+
+■
+
+Line 2 – “LOT” denotes the
+assembly lot number.
+
+■
+
+Line 2 – “YYWW” are the last
+two digit of the year and week
+that the part was assembled.
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+With membrane (ZMOD4410AI3 and -AI4)
+■
+
+Line 1 is the
+truncated part
+number. “X” is the
+package version.
+
+■
+
+Line 2 – “LOT”
+denotes the
+assembly lot
+number.
+
+Page 24
+
+ZMOD4410 Datasheet
+
+13. Ordering Information
+Part Number
+
+Description and Package
+
+MSL Rating
+
+Carrier Type
+
+Temp. Range
+
+ZMOD4410AI1V
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.7 mm
+12-LGA
+
+3
+
+Tray
+
+-40°C to +85°C
+
+ZMOD4410AI1R
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.7 mm
+12-LGA
+
+3
+
+Reel
+
+-40°C to +85°C
+
+ZMOD4410AI2V
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.7 mm
+12-LGA, shipped with removable protection sticker
+
+3
+
+Tray
+
+-40°C to +85°C
+
+ZMOD4410AI2R
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.7 mm
+12-LGA, shipped with removable protection sticker
+
+3
+
+Reel
+
+-40°C to +85°C
+
+ZMOD4410AI3V
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.9 mm
+12-LGA, IP67 rating
+
+3
+
+Tray
+
+-40°C to +85°C
+
+ZMOD4410AI3R
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.9 mm
+12-LGA IP67 rating
+
+3
+
+Reel
+
+-40°C to +85°C
+
+ZMOD4410AI4V
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.9 mm
+12-LGA, shipped with removable protection sticker
+and IP67 rating
+
+3
+
+Tray
+
+-40°C to +85°C
+
+ZMOD4410AI4R
+
+ZMOD4410 Sensor Module, 3.0 × 3.0 × 0.9 mm
+12-LGA, shipped with removable protection sticker
+and IP67 rating
+
+3
+
+Reel
+
+-40°C to +85°C
+
+ZMOD4410-EVK-HC
+
+ZMOD4410 Evaluation Kit including the ZMOD4410 Sensor Board, ZMOD4410 ESCom Communication
+Board (USB Interface), and Micro-USB Cable. (The Environmental Sensors Evaluation Software is
+available for download free of charge on the ZMOD4410-EVK product page.)
+
+ZMOD4410-EVK-DB
+
+ZMOD4410 Sensor Board as spare part for ZMOD4410 Evaluation Kit.
+
+14. Revision History
+Revision
+
+Date
+
+1.17
+
+Mar 26, 2025
+
+Description
+ Updated the operating temperature
+ Updated I2C Bus Timing Characteristic
+ Completed other minor edits
+ Added “Compensation for oxidizing gases” to ULP operation mode
+ Updated Warm-Up Samples
+
+1.16
+
+Sep 26, 2024
+
+ Added EVK hardware spare parts
+ Updated Marking Diagrams
+ Added product picture
+ Completed other minor changes
+ Merged Relative IAQ output with IAQ 2nd Gen, PBAQ and ULP operation mode
+
+1.15
+
+Mar 13, 2024
+
+ Added “Compensation for oxidizing gases” to IAQ 2nd Gen and PBAQ operation mode
+ Completed various changes due to updated EVK hardware
+ Completed other minor changes
+
+1.14
+
+Mar 10, 2023
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+ Updated to include a broader definition of Public Building Air Quality
+
+Page 25
+
+ZMOD4410 Datasheet
+
+Revision
+
+Date
+
+1.13
+
+Jan 31, 2023
+
+Description
+ Added information about PBAQ operation.
+ Updated with Relative IAQ operation mode (Odor operation mode Legacy)
+
+1.12
+
+Aug 26, 2022
+
+ Information on Hydrogen (H2) and sensor status
+ Migrated the document to the latest template
+ Updated with Ultra-Low Power Operation Mode for IAQ 2nd Gen
+
+-
+
+Dec 17, 2021
+
+ Added data for accuracy and consistency
+ Completed other minor changes
+ Updated improved lifetime
+
+-
+
+Jun 30, 2021
+
+ Added a description of firmware and algorithms
+ Add a marking diagram
+ Updated URL
+
+-
+
+Nov 30, 2020
+
+-
+
+Nov 2, 2020
+
+-
+
+Jun 3, 2020
+
+ Updated “Conditioning, Sensor Self-Check Status, and Stability”
+ Completed other minor changes
+ Added ZMOD4410 sensor module packages for Assembly Protection and IP67 Rating
+ Minor updates in language
+ Completed minor edits.
+ Changed to Renesas layout
+ Added RoHS compliance
+
+-
+
+Jun 1, 2020
+
+ Updated NVM data space
+ Updated with Operation Mode for IAQ 2nd Gen
+ Updated with Operation Mode for Sulfur based odor discrimination
+
+-
+
+Jul 30, 2019
+
+ MSL rating corrected in the Ordering table.
+ Addition of storage conditions.
+ Improved programming description for customer-specific applications.
+
+-
+
+May 9, 2019
+
+ Improved pin description for INT.
+ Addition of lifetime for qualification.
+ Addition of the “Related Website and Software” section.
+ Update to add I2C specification.
+
+-
+
+Mar 12, 2019
+
+ Update figure for humidity influence.
+ Update to add disclaimer for safety-related applications in section 1.
+ Minor edits.
+
+-
+
+Nov 2, 2018
+
+-
+
+Sep 24, 2018
+
+ Update with Low Power Operation Method.
+ Update for operation methods for trigger/control signal option.
+ Update for power consumption and minor update in electrical characteristics.
+ Update references.
+
+-
+
+Sep 1, 2018
+
+R36DS0027EU0117 Rev.1.17
+Mar 26, 2025
+
+Initial release.
+
+Page 26
+
+12-LGA, Package Outline Drawing
+3.0 x 3.0 x 0.7 mm Body, 0.5 x 1.0 mm Pitch
+LGG12D1, PSC-4685-01, Rev 05, Page 1
+
+∠
+
+© Renesas Electronics Corporation
+
+12-LGA, Package Outline Drawing
+3.0 x 3.0 x 0.7 mm Body, 0.5 x 1.0 mm Pitch
+LGG12D1, PSC-4685-01, Rev 05, Page 2
+
+Package Revision History
+
+© Renesas Electronics Corporation
+
+Description
+
+Date Created
+
+Rev No.
+
+Sept 12, 2019
+
+Rev 01. Add Dimension on Gal Inlet Hole
+
+Dec 17, 2019
+
+Rev 02
+
+Add Location Dimension Gal Inlet
+
+Mar 10, 2021
+
+Rev 03
+
+Add Tolerance for Entire Body
+
+Apr 27, 2022
+
+Rev 04
+
+Remove PDF SHX
+
+June 20, 2023
+
+Rev 05
+
+Changed body size tolerance to standard tolerance
+
+12-LGA, Package Outline Drawing
+3.0 x 3.0 x 0.9 mm Body, 0.5 x 1.0 mm Pitch
+LVG12D2, PSC-4708-02, Rev 00, Page 1
+
+∠
+
+© Renesas Electronics Corporation
+
+12-LGA, Package Outline Drawing
+3.0 x 3.0 x 0.9 mm Body, 0.5 x 1.0 mm Pitch
+LVG12D2, PSC-4708-02, Rev 00, Page 2
+
+© Renesas Electronics Corporation
+
+Date Created
+
+Rev No. Package Revision History
+
+April 24, 2020
+
+Rev 00
+
+Initial release
+
+IMPORTANT NOTICE AND DISCLAIMER
+RENESAS ELECTRONICS CORPORATION AND ITS SUBSIDIARIES (“RENESAS”) PROVIDES TECHNICAL
+SPECIFICATIONS AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING
+REFERENCE DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND
+OTHER RESOURCES “AS IS” AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+INCLUDING, WITHOUT LIMITATION, ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, OR NON-INFRINGEMENT OF THIRD-PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for developers who are designing with Renesas products. You are solely responsible for (1)
+selecting the appropriate products for your application, (2) designing, validating, and testing your application, and (3)
+ensuring your application meets applicable standards, and any other safety, security, or other requirements. These
+resources are subject to change without notice. Renesas grants you permission to use these resources only to develop an
+application that uses Renesas products. Other reproduction or use of these resources is strictly prohibited. No license is
+granted to any other Renesas intellectual property or to any third-party intellectual property. Renesas disclaims
+responsibility for, and you will fully indemnify Renesas and its representatives against, any claims, damages, costs, losses,
+or liabilities arising from your use of these resources. Renesas' products are provided only subject to Renesas' Terms and
+Conditions of Sale or other applicable terms agreed to in writing. No use of any Renesas resources expands or otherwise
+alters any applicable warranties or warranty disclaimers for these products.
+
+(Disclaimer Rev.1.01)
+
+Corporate Headquarters
+
+Contact Information
+
+TOYOSU FORESIA, 3-2-24 Toyosu,
+Koto-ku, Tokyo 135-0061, Japan
+www.renesas.com
+
+For further information on a product, technology, the most
+up-to-date version of a document, or your nearest sales
+office, please visit www.renesas.com/contact-us/.
+
+Trademarks
+Renesas and the Renesas logo are trademarks of Renesas
+Electronics Corporation. All trademarks and registered
+trademarks are the property of their respective owners.
+
+© 2026 Renesas Electronics Corporation. All rights reserved.
+
+

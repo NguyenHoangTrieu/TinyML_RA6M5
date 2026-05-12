@@ -50,6 +50,14 @@
   #define DEBUG_UART_TX_PORT    7
   #define DEBUG_UART_TX_PIN     7   /* P707 = Arduino D1 = TXD3 */
   #define DEBUG_UART_PSEL       0x05U
+
+  /* Dedicated ESP32 bridge / OTA route: SCI0 on P410/P411 (Pmod 2). */
+  #define SERVER_COMM_UART_CHANNEL  0
+  #define SERVER_COMM_UART_RX_PORT  4
+  #define SERVER_COMM_UART_RX_PIN   10  /* P410 = RXD0 */
+  #define SERVER_COMM_UART_TX_PORT  4
+  #define SERVER_COMM_UART_TX_PIN   11  /* P411 = TXD0 */
+  #define SERVER_COMM_UART_PSEL     0x04U
   
   /* LED assignments (active-HIGH) */
   #define LED1_PORT  GPIO_PORT6
@@ -75,6 +83,13 @@
   #define DEBUG_UART_TX_PORT    6
   #define DEBUG_UART_TX_PIN     13  /* P613 */
   #define DEBUG_UART_PSEL       0x05U
+
+  #define SERVER_COMM_UART_CHANNEL  DEBUG_UART_CHANNEL
+  #define SERVER_COMM_UART_RX_PORT  DEBUG_UART_RX_PORT
+  #define SERVER_COMM_UART_RX_PIN   DEBUG_UART_RX_PIN
+  #define SERVER_COMM_UART_TX_PORT  DEBUG_UART_TX_PORT
+  #define SERVER_COMM_UART_TX_PIN   DEBUG_UART_TX_PIN
+  #define SERVER_COMM_UART_PSEL     DEBUG_UART_PSEL
   
   /* LED assignments (active-HIGH) */
   #define LED1_PORT  GPIO_PORT0
@@ -99,6 +114,7 @@
  * ----------------------------------------------------------------------- */
 #define DEBUG_UART_BAUDRATE   115200U
 #define DEBUG_UART_BRR_DIV    4U     /* /4 mode: BGDM=1, ABCS=1 */
+#define SERVER_COMM_UART_BAUDRATE  115200U
 
 /* Helper macros to identify board */
 #define IS_BOARD_CK()   (BOARD_TYPE == BOARD_TYPE_CK)

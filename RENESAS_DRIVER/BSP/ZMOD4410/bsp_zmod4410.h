@@ -49,7 +49,9 @@
 /* -----------------------------------------------------------------------
  * ZMOD4410 fixed I2C address (7-bit, not shifted)
  * ----------------------------------------------------------------------- */
-#define ZMOD4410_I2C_ADDR   0x32U
+#ifndef ZMOD4410_I2C_ADDR
+#define ZMOD4410_I2C_ADDR               0x32U
+#endif
 #define ZMOD4410_PRODUCT_ID 0x2310U
 #define ZMOD4410_ADC_DATA_LEN 32U
 

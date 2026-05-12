@@ -12,15 +12,16 @@
 #define CLK_WAIT_TIMEOUT_LOOPS 2000000UL
 
 /* Global to track actual SCI source clock after CLK_Init.
- * RA6M5 SCI uses PCLKA (BSP_FEATURE_SCI_CLOCK = PCLKA):
- *   Production:     PCLKA = 100 MHz  (PLL / 2)
- *   HOCO fallback:  PCLKA =  48 MHz  (HOCO / 1) */
-uint32_t g_actual_pclk_hz = 100000000UL;  /* default: PCLKA = 100 MHz production mode */
+ * RA6M5 SCI uses PCLKB (BSP_FEATURE_SCI_CLOCK = PCLKB):
+ *   Production:     PCLKB =  50 MHz  (PLL / 4)
+ *   HOCO fallback:  PCLKB =  20 MHz  (HOCO / 1) */
+uint32_t g_actual_pclk_hz = 50000000UL;  /* default: PCLKB = 50 MHz production mode */
 
 /* Global to track actual ICLK after CLK_Init (used by SysTick for timing calculation) */
 uint32_t g_actual_iclk_hz = 200000000UL;  /* default 200 MHz if production mode succeeds */
 
 static uint8_t g_clk_fallback_happened = 0U;
+static uint8_t g_clk_fail_stage       = 0U;  /* 0=none 1=MOSC 2=PLL2 3=PLL */
 
 /* -----------------------------------------------------------------------
  * CLK_Init — bring the current project to its configured 200 MHz state.
@@ -85,9 +86,9 @@ static void clk_fallback_to_hoco(void)
              | ((uint32_t)SCKDIV_1 << SCKDIVCR_FCKPOS);
     SCKSCR = SCKSCR_HOCO;
     
-    /* Update global PCLK and ICLK values: HOCO 48 MHz with /1 divider */
-    g_actual_pclk_hz = 48000000UL;
-    g_actual_iclk_hz = 48000000UL;  /* ICLK also 48 MHz when on HOCO */
+    /* Update global PCLK and ICLK values: HOCO 20 MHz with /1 divider */
+    g_actual_pclk_hz = 20000000UL;
+    g_actual_iclk_hz = 20000000UL;  /* ICLK also 20 MHz when on HOCO */
     g_clk_fallback_happened = 1U;
     
     /* Signal fallback on LED3: toggle once to indicate fallback occurred */
@@ -129,6 +130,12 @@ uint8_t CLK_GetFallbackOccurred(void)
     return g_clk_fallback_happened;
 }
 
+/* Return clock-init failure stage: 0=OK, 1=MOSC, 2=PLL2, 3=PLL */
+uint8_t CLK_GetFailStage(void)
+{
+    return g_clk_fail_stage;
+}
+
 /* Get the actual ICLK frequency (200 MHz production, 48 MHz fallback) */
 uint32_t CLK_GetActualICLK(void)
 {
@@ -161,8 +168,8 @@ void CLK_Init(void)
 
     SCKSCR = SCKSCR_HOCO;
 
-    g_actual_pclk_hz = 48000000UL;
-    g_actual_iclk_hz = 48000000UL;
+    g_actual_pclk_hz = 20000000UL;
+    g_actual_iclk_hz = 20000000UL;
 
     RWP_Lock_Clock_MSTP();
     return;
@@ -182,31 +189,40 @@ void CLK_Init(void)
     SRAMPRCR = SRAMPRCR_KEY_LOCK;
     __asm volatile ("dmb" ::: "memory");
 
-    /* Configure main oscillator for a 24 MHz crystal and wait for stable MOSC. */
-    MOMCR = 0x00U;
-    MOSCWTCR = MOSCWTCR_MSTS_9;
-    MOSCCR &= (uint8_t)~MOSCCR_MOSTP;
-    if (clk_wait_flag_set(&OSCSF, OSCSF_MOSCSF, CLK_WAIT_TIMEOUT_LOOPS) == 0U)
+    /* Configure HOCO to 20 MHz and use it as the main clock source for PLLs.
+     * This bypasses the need for an external crystal (MOSC), which may not be populated
+     * or correctly pinned out on all boards, ensuring a reliable 200 MHz boot. */
+    HOCOCR2 = 0x02U; /* Set HOCO to 20 MHz */
+    HOCOCR &= (uint8_t)~MOSCCR_MOSTP; /* Start HOCO */
+    if (clk_wait_flag_set(&OSCSF, OSCSF_HOCOSF, CLK_WAIT_TIMEOUT_LOOPS) == 0U)
     {
+        g_clk_fail_stage = 1U;
         clk_fallback_to_hoco();
         RWP_Lock_Clock_MSTP();
         return;
     }
 
-    if (clk_start_pll2_for_usb() == 0U)
+    /* Start PLL2 for USB: 20MHz / 1 * 12.0 = 240MHz */
+    PLL2CCR = (uint16_t)(((uint16_t)23U << PLLCCR_PLLMUL_POS)
+            | ((uint16_t)1U << PLLCCR_PLSRCSEL_POS)  /* Source = HOCO */
+            | (uint16_t)0U);                         /* DIV = 1 */
+    PLL2CR &= (uint8_t)~PLL2CR_PLL2STP;
+    if (clk_wait_flag_set(&OSCSF, OSCSF_PLL2SF, CLK_WAIT_TIMEOUT_LOOPS) == 0U)
     {
+        g_clk_fail_stage = 2U;
         clk_fallback_to_hoco();
         RWP_Lock_Clock_MSTP();
         return;
     }
 
-    /* XTAL / 3 * 25.0 = 200 MHz, per configuration.xml and RA6M5 PLL type 1 encoding. */
-    PLLCCR = (uint16_t)(((uint16_t)PLL_MUL_X25 << PLLCCR_PLLMUL_POS)
-           | ((uint16_t)PLL_SOURCE_MOSC << PLLCCR_PLSRCSEL_POS)
-           | (uint16_t)PLL_DIV_3);
+    /* Start PLL for system clock: 20MHz / 2 * 20.0 = 200MHz */
+    PLLCCR = (uint16_t)(((uint16_t)39U << PLLCCR_PLLMUL_POS)
+           | ((uint16_t)1U << PLLCCR_PLSRCSEL_POS)   /* Source = HOCO */
+           | (uint16_t)1U);                          /* DIV = 2 */
     PLLCR &= (uint8_t)~PLLCR_PLLSTP;
     if (clk_wait_flag_set(&OSCSF, OSCSF_PLLSF, CLK_WAIT_TIMEOUT_LOOPS) == 0U)
     {
+        g_clk_fail_stage = 3U;
         clk_fallback_to_hoco();
         RWP_Lock_Clock_MSTP();
         return;
@@ -223,10 +239,10 @@ void CLK_Init(void)
     SCKSCR = SCKSCR_PLL;
     (void)clk_configure_usbfs_clock();
 
-    /* Production clock tree: SCI source (PCLKA) = 100 MHz, ICLK = 200 MHz.
-     * RA6M5 SCI channels 0-9 are clocked from PCLKA (BSP_FEATURE_SCI_CLOCK = PCLKA).
-     * PCLKB = 50 MHz is NOT the SCI clock source on this device. */
-    g_actual_pclk_hz = 100000000UL;
+    /* Production clock tree: SCI source (PCLKB) = 50 MHz, ICLK = 200 MHz.
+     * RA6M5 SCI channels 0-9 are clocked from PCLKB (BSP_FEATURE_SCI_CLOCK = PCLKB).
+     * PCLKA = 100 MHz is NOT the SCI clock source on this device. */
+    g_actual_pclk_hz = 50000000UL;
     /* Update ICLK to production value (fallback not occurred) */
     g_actual_iclk_hz = 200000000UL;  /* Production: ICLK = 200 MHz */
 

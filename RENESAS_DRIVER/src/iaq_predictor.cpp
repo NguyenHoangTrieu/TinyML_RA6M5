@@ -188,10 +188,8 @@ float IAQ_Predict(float tvoc_ppb)
         return -1.0f;
     }
 
-    /* Step 4: Read and clamp output to valid UBA range */
+    /* Step 4: Read output */
     float iaq_forecast = s_output->data.f[0];
-    if (iaq_forecast < 1.0f) iaq_forecast = 1.0f;
-    if (iaq_forecast > 5.0f) iaq_forecast = 5.0f;
 
     return iaq_forecast;
 }

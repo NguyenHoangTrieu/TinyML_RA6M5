@@ -25,6 +25,7 @@
 #define PLL2CR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x04AU))  /* PLL2 Control                    */
 #define MOSCCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x032U))  /* Main Clock Oscillator Control   */
 #define HOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x036U))  /* HOCO Control                    */
+#define HOCOCR2     (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x037U))  /* HOCO Control 2                  */
 #define MOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x038U))  /* MOCO Control                    */
 #define OSCSF       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x03CU))  /* Oscillation Stabilization Flag  */
 #define MOSCWTCR    (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x0A2U))  /* Main Osc Wait Control           */
@@ -156,9 +157,16 @@ uint32_t CLK_GetActualICLK(void);
 
 /**
  * @brief Return the actual SCI/UART clock used for BRR calculation.
- * In this project SCI is configured from the PCLKB domain (50 MHz production, 48 MHz fallback).
+ * SCI on RA6M5 uses PCLKA (100 MHz production, 48 MHz HOCO fallback).
  */
 uint32_t CLK_GetActualSCIClock(void);
+
+/**
+ * @brief Return the clock-init failure stage (0 = success, 1 = MOSC timeout,
+ *        2 = PLL2 timeout, 3 = PLL timeout).
+ * Useful to pinpoint exactly which oscillator or PLL failed to lock.
+ */
+uint8_t CLK_GetFailStage(void);
 
 /*
  * CLK_ModuleStart_SCI — release module stop for one SCI channel.

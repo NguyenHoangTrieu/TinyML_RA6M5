@@ -12,6 +12,7 @@
 #define SENSOR_CONFIG_H
 
 #include "board_config.h"
+#include "drv_i2c.h"
 
 /* -----------------------------------------------------------------------
  * Sensor Selection Based on Board Type
@@ -42,19 +43,34 @@
 #define IS_USING_SIMULATOR()    (USE_SENSOR_SIMULATOR)
 
 /* -----------------------------------------------------------------------
- * I2C/SPI Sensor Addresses and Pins (same for both boards)
+ * Sensor bus configuration
  * ----------------------------------------------------------------------- */
 
-/* I2C1 (RIIC1) bus configuration */
-#define I2C_SENSOR_BUS        I2C1
-#define I2C_SENSOR_SPEED      I2C_SPEED_STANDARD  /* 100 kHz */
+#if (BOARD_TYPE == BOARD_TYPE_CK)
+  /* CK-RA6M5 onboard ZMOD4410 is on RIIC0: P400/P401. */
+  #define I2C_SENSOR_BUS          I2C0
+  #define I2C_SENSOR_SPEED        I2C_SPEED_STANDARD
+  #define I2C_SENSOR_SPEED_KHZ    100U
+  #define I2C_SENSOR_SCL_PORT     4U
+  #define I2C_SENSOR_SCL_PIN      0U
+  #define I2C_SENSOR_SDA_PORT     4U
+  #define I2C_SENSOR_SDA_PIN      1U
+#else
+  #define I2C_SENSOR_BUS          I2C1
+  #define I2C_SENSOR_SPEED        I2C_SPEED_STANDARD
+  #define I2C_SENSOR_SPEED_KHZ    100U
+  #define I2C_SENSOR_SCL_PORT     5U
+  #define I2C_SENSOR_SCL_PIN      12U
+  #define I2C_SENSOR_SDA_PORT     5U
+  #define I2C_SENSOR_SDA_PIN      11U
+#endif
 
 /* AHT20 Humidity/Temperature Sensor */
 #define AHT20_I2C_ADDRESS     0x38U
 #define AHT20_ENABLED         (USE_SENSOR_AHT20)
 
 /* ZMOD4410 Air Quality Sensor */
-#define ZMOD4410_I2C_ADDRESS  0x33U
+#define ZMOD4410_I2C_ADDRESS  0x32U
 #define ZMOD4410_ENABLED      (USE_SENSOR_ZMOD4410)
 
 /* Sensor Simulator (used on EK only) */

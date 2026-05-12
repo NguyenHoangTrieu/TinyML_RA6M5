@@ -14,9 +14,11 @@
 #include "drv_uart.h"
 #include "drv_usb.h"
 #include "board_config.h"
+#include "sensor_config.h"
 #include "kernel.h"
 #include "rtos_config.h"
 #include "server_comm.h"
+#include "bsp_zmod4410.h"
 #include "semaphore.h"
 #include "software_timer.h"
 #include "test/app_test_config.h"
@@ -170,6 +172,7 @@ int main(void) {
   led_init();
 
   debug_print_init();
+  dbg_link_ok = debug_print_backend_ready();
 
   /*
    * Safe-reset init — MUST run before any task code.
@@ -214,12 +217,38 @@ debug_print("First StartUp!\r\n");
   debug_print("CLK   : ICLK=%u Hz, SCI_CLK=%u Hz\r\n",
               (unsigned)CLK_GetActualICLK(),
               (unsigned)CLK_GetActualSCIClock());
+  if (CLK_GetFallbackOccurred())
+  {
+    debug_print("[WARN] Clock fallback! Stage=%u (1=MOSC 2=PLL2 3=PLL)\r\n",
+                (unsigned)CLK_GetFailStage());
+  }
   debug_print("UARTCFG: BRR_DIV=%u\r\n", (unsigned)DEBUG_UART_BRR_DIV);
-  debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
+  debug_print("COMM  : SCI%u P%u_%u(RX)/P%u_%u(TX) @ %u baud\r\n",
+              (unsigned)SERVER_COMM_UART_CHANNEL,
+              (unsigned)SERVER_COMM_UART_RX_PORT,
+              (unsigned)SERVER_COMM_UART_RX_PIN,
+              (unsigned)SERVER_COMM_UART_TX_PORT,
+              (unsigned)SERVER_COMM_UART_TX_PIN,
+              (unsigned)SERVER_COMM_UART_BAUDRATE);
+  debug_print("I2C   : RIIC%u P%u_%u(SCL)/P%u_%u(SDA) @ %u kHz\r\n",
+              (unsigned)I2C_SENSOR_BUS,
+              (unsigned)I2C_SENSOR_SCL_PORT,
+              (unsigned)I2C_SENSOR_SCL_PIN,
+              (unsigned)I2C_SENSOR_SDA_PORT,
+              (unsigned)I2C_SENSOR_SDA_PIN,
+              (unsigned)I2C_SENSOR_SPEED_KHZ);
   debug_print("LINK  : %s\r\n", dbg_link_ok != 0U ? "OK" : "FAIL");
 
-  I2C_Init(I2C1, 50U, I2C_SPEED_STANDARD);
-  i2c_scan(I2C1);
+  uint8_t pclkb_mhz = (uint8_t)(CLK_GetActualSCIClock() / 1000000U);
+  I2C_Init(I2C_SENSOR_BUS, pclkb_mhz, I2C_SENSOR_SPEED);
+
+#if USE_SENSOR_ZMOD4410
+  /* Wake up ZMOD4410 so it appears in the I2C scan */
+  (void)ZMOD4410_HardReset();
+  delay_ms_bm(100U);
+#endif
+
+  i2c_scan(I2C_SENSOR_BUS);
   delay_ms_bm(120U);
 
   OS_Init();

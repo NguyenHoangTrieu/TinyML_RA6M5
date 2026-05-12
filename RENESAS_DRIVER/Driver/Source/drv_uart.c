@@ -138,8 +138,8 @@ void UART_Init(UART_t uart, uint32_t baudrate)
 
     /* --- UART Self-Check Log --- */
     extern void debug_print(const char *fmt, ...);
-    debug_print("[UART_INIT] CH=%u PCLKB=%lu DIV=%lu BAUD=%lu\r\n", (unsigned)n, (unsigned long)pclk, (unsigned long)divisor, (unsigned long)baudrate);
-    debug_print("[UART_INIT] BRR=0x%02X SEMR=0x%02X SMR=0x%02X SCR=0x%02X\r\n", (unsigned)SCI_BRR(n), (unsigned)SCI_SEMR(n), (unsigned)SCI_SMR(n), (unsigned)SCI_SCR(n));
+    debug_print("[UART_INIT] CH=%u CLK=%u DIV=%u BAUD=%u\r\n", (unsigned)n, (unsigned)pclk, (unsigned)divisor, (unsigned)baudrate);
+    debug_print("[UART_INIT] BRR=0x%X SEMR=0x%X SMR=0x%X SCR=0x%X\r\n", (unsigned)SCI_BRR(n), (unsigned)SCI_SEMR(n), (unsigned)SCI_SMR(n), (unsigned)SCI_SCR(n));
     /* --- END UART Self-Check Log --- */
 }
 

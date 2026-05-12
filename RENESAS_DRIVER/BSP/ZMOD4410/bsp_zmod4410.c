@@ -94,7 +94,7 @@ static void zmod4410_delay_ms(uint32_t ms)
         return;
     }
 
-    volatile uint32_t n = ms * 100000U;
+    volatile uint32_t n = ms * 200000U;
     while (n-- != 0U)
     {
         __asm volatile("nop");
@@ -196,7 +196,7 @@ ZMOD4410_Status_t ZMOD4410_Init(I2C_t i2c, ZMOD4410_OpMode_t operation_mode)
     (void)ZMOD4410_HardReset();
 
     /* Wait for sensor to stabilize after power-on */
-    zmod4410_delay_ms(100U);
+    zmod4410_delay_ms(200U);
 
     /* Verify sensor is present by reading the official 16-bit PID. */
     if (zmod4410_read_register(i2c, ZMOD4410_REG_PID, product_id_raw, 2U) == 0U)
