@@ -13,8 +13,8 @@
  *      writes the model to Data Flash and switches to it on the next boot.
  *
  * UART1 wiring (ESP32-C6):
- *   TX = GPIO17  →  RA6M5 UART2 RX (P301)   — sends model OTA frames
- *   RX = GPIO16  ←  RA6M5 UART2 TX (P302)   — receives IAQ text + ACK/NACK
+ *   TX = GPIO14  →  RA6M5 SCI3 RX (P706 / Arduino D0)   — sends model OTA frames
+ *   RX = GPIO15  ←  RA6M5 SCI3 TX (P707 / Arduino D1)   — receives debug text + tagged telemetry + ACK/NACK
  *   GND → GND  (common ground REQUIRED)
  *
  * Network topology:
@@ -46,7 +46,7 @@
 /* -----------------------------------------------------------------------
  * USER CONFIGURATION — edit before flashing
  * ----------------------------------------------------------------------- */
-#define ENABLE_MCU_SIMULATION 1  /* Set to 1 to simulate MCU data for server testing */
+#define ENABLE_MCU_SIMULATION 0  /* Set to 1 to simulate MCU data for server testing */
 
 #define WIFI_SSID            "iphone"
 #define WIFI_PASSWORD        "12345678"
@@ -193,8 +193,8 @@ static void mqtt_reconnect(void)
  * RA6M5 UART text bridge
  *
  * RA6M5 debug_print() outputs newline-terminated strings, e.g.:
- *   "[547034 ms] Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80"
- *   "[548171 ms] T=31.1 C  RH=46.9%"
+ *   "[547034 ms] T.Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80"
+ *   "[548171 ms] T.Sensor: [sensor:263] T=31.1 C  RH=46.9%"
  *
  * All data is sent as plain text (strings) — no binary framing.
  * Lines matching either IAQ pattern are forwarded verbatim to MQTT topic
@@ -203,9 +203,12 @@ static void mqtt_reconnect(void)
  * ========================================================================= */
 static bool line_is_iaq_data(const char *line)
 {
-    /* Pattern 1 – IAQ result: "Published: TVOC=<v>ppb | Actual=<a> | Predict=<p>" */
+    /* Pattern 1 – tagged IAQ result: "T.Published: TVOC=<v>ppb | Actual=<a> | Predict=<p>" */
+    if (strstr(line, "T.Published:") != nullptr) { return true; }
+    /* Pattern 2 – tagged Temperature/Humidity: "T.Sensor: [sensor:n] T=<t> C  RH=<h>%" */
+    if (strstr(line, "T.Sensor:") != nullptr) { return true; }
+    /* Backward-compatibility with older firmware lines. */
     if (strstr(line, "Published:") != nullptr) { return true; }
-    /* Pattern 2 – Temperature/Humidity: "T=<t> C  RH=<h>%" */
     if (strstr(line, "T=") != nullptr && strstr(line, "RH=") != nullptr) { return true; }
     return false;
 }
@@ -445,7 +448,7 @@ static bool download_and_push_model(void)
  * Reads every byte from Serial1, accumulates lines, and:
  *   1. Prints ALL lines to Serial (USB CDC) unconditionally -- user always
  *      sees RA6M5 output regardless of WiFi/MQTT connectivity.
- *   2. Enqueues IAQ-pattern lines for task_net_manager to publish.
+ *   2. Enqueues tagged telemetry lines for task_net_manager to publish.
  * Yields during OTA transfers so ota_send_model() has exclusive Serial1.
  */
 static void task_uart_logger(void *arg)
@@ -470,7 +473,7 @@ static void task_uart_logger(void *arg)
                     /* Always print the received string to USB-CDC Serial */
                     Serial.printf("[RA6M5 STR] %s\n", line_buf);
 
-                    /* Queue IAQ/T+RH string lines for MQTT publish */
+                    /* Queue tagged telemetry lines for MQTT publish */
                     if (line_is_iaq_data(line_buf) && g_line_queue != nullptr) {
                         char *entry = (char *)malloc(line_idx + 1U);
                         if (entry != nullptr) {
@@ -594,15 +597,15 @@ static void task_mcu_simulator(void *arg)
 {
     (void)arg;
     static const char* s_sim_data[] = {
-        "[547034 ms] Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80",
-        "[548171 ms] [sensor:263] T=31.1 C  RH=46.9%",
+        "[547034 ms] T.Published: TVOC=144.0ppb | Actual=1.86 | Predict=1.80",
+        "[548171 ms] T.Sensor: [sensor:263] T=31.1 C  RH=46.9%",
         "[550000 ms] [timer] LED2 toggles=1100",
-        "[550255 ms] [sensor:264] T=31.1 C  RH=46.3%",
+        "[550255 ms] T.Sensor: [sensor:264] T=31.1 C  RH=46.3%",
         "[552040 ms] [SensorSim_Read OK]",
         "[552043 ms] [IAQ_Predict OK]",
-        "[552045 ms] Published: TVOC=144.8ppb | Actual=1.86 | Predict=1.80",
-        "[552339 ms] [sensor:265] T=31.1 C  RH=46.7%",
-        "[554423 ms] [sensor:266] T=31.1 C  RH=46.9%"
+        "[552045 ms] T.Published: TVOC=144.8ppb | Actual=1.86 | Predict=1.80",
+        "[552339 ms] T.Sensor: [sensor:265] T=31.1 C  RH=46.7%",
+        "[554423 ms] T.Sensor: [sensor:266] T=31.1 C  RH=46.9%"
     };
     uint8_t line_idx = 0;
     const uint8_t total_lines = sizeof(s_sim_data) / sizeof(s_sim_data[0]);

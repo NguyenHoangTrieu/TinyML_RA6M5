@@ -51,13 +51,13 @@
   #define DEBUG_UART_TX_PIN     7   /* P707 = Arduino D1 = TXD3 */
   #define DEBUG_UART_PSEL       0x05U
 
-  /* Dedicated ESP32 bridge / OTA route: SCI0 on P410/P411 (Pmod 2). */
-  #define SERVER_COMM_UART_CHANNEL  0
-  #define SERVER_COMM_UART_RX_PORT  4
-  #define SERVER_COMM_UART_RX_PIN   10  /* P410 = RXD0 */
-  #define SERVER_COMM_UART_TX_PORT  4
-  #define SERVER_COMM_UART_TX_PIN   11  /* P411 = TXD0 */
-  #define SERVER_COMM_UART_PSEL     0x04U
+  /* Shared debug + ESP32 bridge / OTA route: same SCI3 on Arduino D0/D1. */
+  #define SERVER_COMM_UART_CHANNEL  DEBUG_UART_CHANNEL
+  #define SERVER_COMM_UART_RX_PORT  DEBUG_UART_RX_PORT
+  #define SERVER_COMM_UART_RX_PIN   DEBUG_UART_RX_PIN
+  #define SERVER_COMM_UART_TX_PORT  DEBUG_UART_TX_PORT
+  #define SERVER_COMM_UART_TX_PIN   DEBUG_UART_TX_PIN
+  #define SERVER_COMM_UART_PSEL     DEBUG_UART_PSEL
   
   /* LED assignments (active-HIGH) */
   #define LED1_PORT  GPIO_PORT6

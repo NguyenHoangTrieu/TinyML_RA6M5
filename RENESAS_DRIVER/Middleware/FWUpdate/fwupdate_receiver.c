@@ -500,7 +500,9 @@ void fwupdate_receiver_init(void)
         s_ctx.frame_data[i] = 0U;
     }
 
+#if !(OS_DEBUG_BACKEND_UART && (FWUPDATE_UART_CHANNEL == OS_DEBUG_UART_CHANNEL))
     UART_Init((UART_t)FWUPDATE_UART_CH, FWUPDATE_UART_BAUDRATE);
+#endif
 }
 
 /* -----------------------------------------------------------------------

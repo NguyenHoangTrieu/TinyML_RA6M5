@@ -34,6 +34,12 @@
 #define ZMOD_READY_TIMEOUT_MS    10000U  /* IAQ 2nd Gen: up to ~8 s per cycle */
 #define ZMOD_READY_POLL_MS          100U
 
+#if OS_DEBUG_BACKEND_UART && (SERVER_COMM_UART_CHANNEL == OS_DEBUG_UART_CHANNEL)
+#define SERVER_COMM_SHARED_DEBUG_UART 1
+#else
+#define SERVER_COMM_SHARED_DEBUG_UART 0
+#endif
+
 typedef struct {
     int32_t tvoc_x10;
     int32_t eco2_x10;
@@ -88,11 +94,24 @@ static int32_t server_comm_round_to_i32(float val)
     return (int32_t)(val - 0.5f);
 }
 
-static void server_comm_uart_init(void)
+static uint32_t server_comm_abs_i32(int32_t value)
 {
-    UART_Init((UART_t)SERVER_COMM_UART_CHANNEL, SERVER_COMM_UART_BAUDRATE);
+    if (value < 0)
+    {
+        return (uint32_t)(-value);
+    }
+
+    return (uint32_t)value;
 }
 
+static void server_comm_uart_init(void)
+{
+#if !SERVER_COMM_SHARED_DEBUG_UART
+    UART_Init((UART_t)SERVER_COMM_UART_CHANNEL, SERVER_COMM_UART_BAUDRATE);
+#endif
+}
+
+#if !SERVER_COMM_SHARED_DEBUG_UART
 static void server_comm_send_u8(uint8_t b)
 {
     UART_SendChar((UART_t)SERVER_COMM_UART_CHANNEL, (char)b);
@@ -134,16 +153,6 @@ static void server_comm_send_u32(uint32_t value)
     }
 }
 
-static uint32_t server_comm_abs_i32(int32_t value)
-{
-    if (value < 0)
-    {
-        return (uint32_t)(-value);
-    }
-
-    return (uint32_t)value;
-}
-
 static void server_comm_send_fixed_1(int32_t value_x10)
 {
     uint32_t abs_value = server_comm_abs_i32(value_x10);
@@ -173,6 +182,47 @@ static void server_comm_send_fixed_2(int32_t value_x100)
     server_comm_send_u8((uint8_t)('0' + (abs_value % 10U)));
 }
 
+static void server_comm_send_raw(int32_t tvoc_x10, int32_t eco2_x10)
+{
+    server_comm_send_cstr("T.Raw: TVOC=");
+    server_comm_send_fixed_1(tvoc_x10);
+    server_comm_send_cstr("ppb | eCO2=");
+    server_comm_send_fixed_1(eco2_x10);
+    server_comm_send_cstr("ppm\r\n");
+}
+
+static void server_comm_send_iaq(int32_t iaq_x100)
+{
+    server_comm_send_cstr("T.Predict: Predict=");
+    server_comm_send_fixed_2(iaq_x100);
+    server_comm_send_cstr("\r\n");
+}
+
+static void server_comm_send_published(int32_t tvoc_x10, int32_t actual_x100, int32_t predict_x100)
+{
+    server_comm_send_cstr("T.Published: TVOC=");
+    server_comm_send_fixed_1(tvoc_x10);
+    server_comm_send_cstr("ppb | Actual=");
+    server_comm_send_fixed_2(actual_x100);
+    server_comm_send_cstr(" | Predict=");
+    server_comm_send_fixed_2(predict_x100);
+    server_comm_send_cstr("\r\n");
+}
+
+#if USE_SENSOR_ZMOD4410 && USE_SENSOR_HS3001
+static void server_comm_send_sensor(uint32_t sample_id, int32_t temp_x10, int32_t humidity_x10)
+{
+    server_comm_send_cstr("T.Sensor: [sensor:");
+    server_comm_send_u32(sample_id);
+    server_comm_send_cstr("] T=");
+    server_comm_send_fixed_1(temp_x10);
+    server_comm_send_cstr(" C  RH=");
+    server_comm_send_fixed_1(humidity_x10);
+    server_comm_send_cstr("%\r\n");
+}
+#endif
+#endif
+
 static float server_comm_tvoc_to_iaq(float tvoc_ppb)
 {
     float iaq;
@@ -190,43 +240,63 @@ static float server_comm_tvoc_to_iaq(float tvoc_ppb)
     return iaq;
 }
 
-static void server_comm_send_raw(int32_t tvoc_x10, int32_t eco2_x10)
+static void server_comm_emit_raw(int32_t tvoc_x10, int32_t eco2_x10)
 {
-    server_comm_send_cstr("Raw: TVOC=");
-    server_comm_send_fixed_1(tvoc_x10);
-    server_comm_send_cstr("ppb | eCO2=");
-    server_comm_send_fixed_1(eco2_x10);
-    server_comm_send_cstr("ppm\r\n");
+#if SERVER_COMM_SHARED_DEBUG_UART
+    debug_print("T.Raw: TVOC=%d.%uppb | eCO2=%d.%uppm\r\n",
+                (int)(tvoc_x10 / 10),
+                (unsigned)(server_comm_abs_i32(tvoc_x10) % 10U),
+                (int)(eco2_x10 / 10),
+                (unsigned)(server_comm_abs_i32(eco2_x10) % 10U));
+#else
+    server_comm_send_raw(tvoc_x10, eco2_x10);
+#endif
 }
 
-static void server_comm_send_iaq(int32_t iaq_x100)
+static void server_comm_emit_predict(int32_t iaq_x100)
 {
-    server_comm_send_cstr("Predict=");
-    server_comm_send_fixed_2(iaq_x100);
-    server_comm_send_cstr("\r\n");
+#if SERVER_COMM_SHARED_DEBUG_UART
+    debug_print("T.Predict: Predict=%d.%d%d\r\n",
+                (int)(iaq_x100 / 100),
+                (int)((server_comm_abs_i32(iaq_x100) / 10U) % 10U),
+                (int)(server_comm_abs_i32(iaq_x100) % 10U));
+#else
+    server_comm_send_iaq(iaq_x100);
+#endif
 }
 
-static void server_comm_send_published(int32_t tvoc_x10, int32_t actual_x100, int32_t predict_x100)
+static void server_comm_emit_published(int32_t tvoc_x10, int32_t actual_x100, int32_t predict_x100)
 {
-    server_comm_send_cstr("Published: TVOC=");
-    server_comm_send_fixed_1(tvoc_x10);
-    server_comm_send_cstr("ppb | Actual=");
-    server_comm_send_fixed_2(actual_x100);
-    server_comm_send_cstr(" | Predict=");
-    server_comm_send_fixed_2(predict_x100);
-    server_comm_send_cstr("\r\n");
+    int t_int = (int)(tvoc_x10 / 10);
+    unsigned t_frac = (unsigned)(server_comm_abs_i32(tvoc_x10) % 10U);
+    int a_int = (int)(actual_x100 / 100);
+    unsigned a_frac1 = (unsigned)((server_comm_abs_i32(actual_x100) / 10U) % 10U);
+    unsigned a_frac2 = (unsigned)(server_comm_abs_i32(actual_x100) % 10U);
+    int p_int = (int)(predict_x100 / 100);
+    unsigned p_frac1 = (unsigned)((server_comm_abs_i32(predict_x100) / 10U) % 10U);
+    unsigned p_frac2 = (unsigned)(server_comm_abs_i32(predict_x100) % 10U);
+
+    debug_print("T.Published: TVOC=%d.%uppb | Actual=%d.%u%u | Predict=%d.%u%u\r\n",
+                t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
+
+#if !SERVER_COMM_SHARED_DEBUG_UART
+    server_comm_send_published(tvoc_x10, actual_x100, predict_x100);
+#endif
 }
 
 #if USE_SENSOR_ZMOD4410 && USE_SENSOR_HS3001
-static void server_comm_send_sensor(uint32_t sample_id, int32_t temp_x10, int32_t humidity_x10)
+static void server_comm_emit_sensor(uint32_t sample_id, int32_t temp_x10, int32_t humidity_x10)
 {
-    server_comm_send_cstr("[sensor:");
-    server_comm_send_u32(sample_id);
-    server_comm_send_cstr("] T=");
-    server_comm_send_fixed_1(temp_x10);
-    server_comm_send_cstr(" C  RH=");
-    server_comm_send_fixed_1(humidity_x10);
-    server_comm_send_cstr("%\r\n");
+    debug_print("T.Sensor: [sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n",
+                (unsigned)sample_id,
+                (int)(temp_x10 / 10),
+                (unsigned)(server_comm_abs_i32(temp_x10) % 10U),
+                (int)(humidity_x10 / 10),
+                (unsigned)(server_comm_abs_i32(humidity_x10) % 10U));
+
+#if !SERVER_COMM_SHARED_DEBUG_UART
+    server_comm_send_sensor(sample_id, temp_x10, humidity_x10);
+#endif
 }
 #endif
 
@@ -256,12 +326,12 @@ static void task_server_comm_tx(void *arg)
 
         if (raw_pending != 0U)
         {
-            server_comm_send_raw(tvoc_x10, eco2_x10);
+            server_comm_emit_raw(tvoc_x10, eco2_x10);
         }
 
         if (iaq_pending != 0U)
         {
-            server_comm_send_iaq(iaq_x100);
+            server_comm_emit_predict(iaq_x100);
         }
     }
 }
@@ -358,13 +428,7 @@ static void task_server_comm_iaq(void *arg)
                                                      hs3001_data.temperature_c,
                                                      hs3001_data.humidity_pct);
 
-                debug_print("[sensor:%u] T=%d.%u C  RH=%d.%u%%\r\n",
-                            (unsigned)sensor_sample,
-                            (int)(temp_10 / 10),
-                            (unsigned)(server_comm_abs_i32(temp_10) % 10U),
-                            (int)(humidity_10 / 10),
-                            (unsigned)(server_comm_abs_i32(humidity_10) % 10U));
-                server_comm_send_sensor(sensor_sample, temp_10, humidity_10);
+                server_comm_emit_sensor(sensor_sample, temp_10, humidity_10);
             }
             else
             {
@@ -391,6 +455,7 @@ static void task_server_comm_iaq(void *arg)
         /* ── Step 2: Wait for measurement ready (STATUS bit7 = 0) ────────── */
         if (server_comm_wait_zmod_ready(I2C_SENSOR_BUS, ZMOD_READY_TIMEOUT_MS) == 0U)
         {
+            debug_print("[ZMOD] STATUS timeout — no fresh ADC sample\r\n");
             debug_print("[IAQ] Skipping publish because ZMOD measurement never became ready\r\n");
             OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
             continue;
@@ -430,21 +495,7 @@ static void task_server_comm_iaq(void *arg)
 
         debug_print("[IAQ_Predict OK]\r\n");
 
-        {
-            int t_int  = (int)(tvoc_10 / 10);
-            int t_frac = (int)(tvoc_10 % 10);
-            int a_int  = (int)(actual_100 / 100);
-            int a_frac1 = (int)((actual_100 % 100) / 10);
-            int a_frac2 = (int)(actual_100 % 10);
-            int p_int  = (int)(predict_100 / 100);
-            int p_frac1 = (int)((predict_100 % 100) / 10);
-            int p_frac2 = (int)(predict_100 % 10);
-            debug_print("Published: TVOC=%d.%dppb | Actual=%d.%d%d | Predict=%d.%d%d\r\n",
-                        t_int, t_frac, a_int, a_frac1, a_frac2, p_int, p_frac1, p_frac2);
-        }
-
-        /* Mirror server-compatible payload to Arduino UART */
-        server_comm_send_published(tvoc_10, actual_100, predict_100);
+        server_comm_emit_published(tvoc_10, actual_100, predict_100);
 
         OS_Task_Delay(IAQ_CYCLE_DELAY_MS);
     }
